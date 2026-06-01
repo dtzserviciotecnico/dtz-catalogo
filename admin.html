@@ -410,18 +410,26 @@ function handleFile(file) {
     let headerIdx=rows.findIndex(r=>r.some(c=>String(c).toLowerCase().includes('nombre')));
     if(headerIdx<0) headerIdx=0;
     const headers=rows[headerIdx].map(h=>String(h).toLowerCase().trim());
-    // Columnas reales del Excel de Odoo
-    const colCode  =headers.findIndex(h=>h.includes('referencia'));
-    const colNombre=headers.findIndex(h=>h.includes('nombre'));
-    const colPrecio=headers.findIndex(h=>h.includes('precio')||h.includes('venta'));
-    const colStock =headers.findIndex(h=>h.includes('cantidad')||h.includes('mano'));
+    // Columnas reales del Excel de Odoo — búsqueda robusta
+    let colCode=-1,colNombre=-1,colPrecio=-1,colStock=-1;
+    headers.forEach((h,i)=>{
+      if(h.includes('referencia') || h.includes('interna'))            colCode=i;
+      if(h==='nombre' || h.includes('nombre del'))                     colNombre=i;
+      if(h.includes('precio') || h.includes('venta'))                  colPrecio=i;
+      if(h.includes('cantidad') || h.includes('mano') || h.includes('stock')) colStock=i;
+    });
+    // Fallback: si no encontró referencia, usar primera columna
+    if(colCode<0)   colCode=0;
+    if(colNombre<0) colNombre=1;
+    if(colPrecio<0) colPrecio=2;
+    if(colStock<0)  colStock=3;
     const products=[],warnings=[];
     for(let i=headerIdx+1;i<rows.length;i++){
       const row=rows[i];
       const rawCode=String(row[colCode]||'').trim();
       const name   =String(row[colNombre]||'').trim();
       if(!name&&!rawCode) continue;
-      const price=parseFloat(String(row[colPrecio]).replace(/[^0-9.]/g,''))||0;
+      const price=parseFloat(String(row[colPrecio]).replace(/[^0-9.,]/g,'').replace(',','.'))||0;
       const stock=parseInt(row[colStock])||0;
       const hasValidCode=rawCode.startsWith('*');
       const codeNum=parseInt(rawCode.replace('*',''))||9999;
