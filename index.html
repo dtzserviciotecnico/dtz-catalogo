@@ -256,11 +256,19 @@ async function loadLogo() {
 async function loadProducts() {
   document.getElementById('loadingOverlay').classList.remove('hidden');
   try {
-    const { data, error } = await supabase.from('productos')
-      .select('id,code,name,price,stock,img_url,has_valid_code')
-      .order('code_num',{ascending:true});
-    if (error) throw error;
-    allProducts = data || [];
+    // Paginamos de a 1000 para traer todos los productos
+    let allData=[], from=0, pageSize=1000, keepGoing=true;
+    while(keepGoing){
+      const {data,error}=await supabase.from('productos')
+        .select('id,code,name,price,stock,img_url,has_valid_code')
+        .order('code_num',{ascending:true})
+        .range(from, from+pageSize-1);
+      if(error) throw error;
+      allData=allData.concat(data||[]);
+      keepGoing=(data&&data.length===pageSize);
+      from+=pageSize;
+    }
+    allProducts=allData;
   } catch(e) { allProducts = []; }
   document.getElementById('loadingOverlay').classList.add('hidden');
   applyFiltersAndRender();
