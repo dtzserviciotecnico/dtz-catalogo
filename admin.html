@@ -338,7 +338,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 <div class="toast" id="toast"></div>
 
 <script>
-const supabase = window.supabase.createClient(DTZ_CONFIG.supabaseUrl, DTZ_CONFIG.supabaseAnonKey);
+const db = window.supabase.createClient(DTZ_CONFIG.supabaseUrl, DTZ_CONFIG.supabaseAnonKey);
 
 let currentUser=null, allProducts=[], filteredProducts=[], pendingProducts=[];
 let currentProdPage=1, currentEditId=null, pendingImgFile=null, pendingLogoFile=null;
@@ -346,13 +346,13 @@ const PROD_PER_PAGE=50;
 
 // ── AUTH ─────────────────────────────────────────────────
 async function checkSession() {
-  const {data:{session}} = await supabase.auth.getSession();
+  const {data:{session}} = await db.auth.getSession();
   if (session) showAdmin(session.user);
   else await loadLoginLogo();
 }
 async function loadLoginLogo() {
   try {
-    const {data} = await supabase.from('configuracion').select('valor').eq('clave','logo_url').single();
+    const {data} = await db.from('configuracion').select('valor').eq('clave','logo_url').single();
     if (data?.valor) {
       const el = document.getElementById('loginLogoFallback');
       const img = document.createElement('img');
@@ -368,14 +368,14 @@ async function doLogin() {
   const btn=document.getElementById('btnLogin');
   btn.disabled=true; btn.textContent='Ingresando...';
   document.getElementById('loginError').style.display='none';
-  const {data,error} = await supabase.auth.signInWithPassword({email,password:pass});
+  const {data,error} = await db.auth.signInWithPassword({email,password:pass});
   if (error) {
     document.getElementById('loginError').style.display='block';
     btn.disabled=false; btn.textContent='Ingresar';
   } else showAdmin(data.user);
 }
 async function doLogout() {
-  await supabase.auth.signOut();
+  await db.auth.signOut();
   document.getElementById('adminScreen').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   currentUser=null;
@@ -460,7 +460,7 @@ async function confirmImport() {
   if(!pendingProducts.length) return;
   const btn=document.getElementById('btnImport');
   btn.disabled=true;
-  const {data:existingWithImgs}=await supabase.from('productos').select('code,img_url').not('img_url','is',null);
+  const {data:existingWithImgs}=await db.from('productos').select('code,img_url').not('img_url','is',null);
   const imgMap={};
   (existingWithImgs||[]).forEach(p=>{if(p.img_url) imgMap[p.code]=p.img_url;});
   const toInsert=pendingProducts.map(p=>({...p,img_url:imgMap[p.code]||null,updated_at:new Date().toISOString()}));
@@ -468,11 +468,11 @@ async function confirmImport() {
   const fill=document.getElementById('progressFill');
   const label=document.getElementById('progressLabel');
   progress.style.display='block';
-  await supabase.from('productos').delete().neq('id',0);
+  await db.from('productos').delete().neq('id',0);
   const BATCH=100; let done=0;
   for(let i=0;i<toInsert.length;i+=BATCH){
     const batch=toInsert.slice(i,i+BATCH);
-    const {error}=await supabase.from('productos').insert(batch);
+    const {error}=await db.from('productos').insert(batch);
     if(error){toast('Error: '+error.message,'err');break;}
     done+=batch.length;
     const pct=Math.round(done/toInsert.length*100);
@@ -497,7 +497,7 @@ async function loadProductsTable() {
   // Paginamos de a 1000 para traer todos los productos
   let allData=[], from=0, pageSize=1000, keepGoing=true;
   while(keepGoing){
-    const {data,error}=await supabase.from('productos')
+    const {data,error}=await db.from('productos')
       .select('id,code,name,price,stock,img_url,has_valid_code')
       .order('code_num',{ascending:true})
       .range(from, from+pageSize-1);
@@ -590,10 +590,10 @@ async function saveImage() {
   btn.disabled=true; btn.textContent='Subiendo...';
   const ext=pendingImgFile.name.split('.').pop().toLowerCase();
   const fileName=`producto-${currentEditId}-${Date.now()}.${ext}`;
-  const {error:uploadErr}=await supabase.storage.from('imagenes-productos').upload(fileName,pendingImgFile,{upsert:true,contentType:pendingImgFile.type});
+  const {error:uploadErr}=await db.storage.from('imagenes-productos').upload(fileName,pendingImgFile,{upsert:true,contentType:pendingImgFile.type});
   if(uploadErr){toast('Error subiendo: '+uploadErr.message,'err');btn.disabled=false;btn.textContent='💾 Guardar imagen';return;}
-  const {data:urlData}=supabase.storage.from('imagenes-productos').getPublicUrl(fileName);
-  const {error:updateErr}=await supabase.from('productos').update({img_url:urlData.publicUrl}).eq('id',currentEditId);
+  const {data:urlData}=db.storage.from('imagenes-productos').getPublicUrl(fileName);
+  const {error:updateErr}=await db.from('productos').update({img_url:urlData.publicUrl}).eq('id',currentEditId);
   if(updateErr){toast('Error guardando URL','err');}
   else {
     toast('✔ Imagen guardada','ok');
@@ -607,7 +607,7 @@ async function saveImage() {
 }
 async function deleteImage() {
   if(!currentEditId) return;
-  const {error}=await supabase.from('productos').update({img_url:null}).eq('id',currentEditId);
+  const {error}=await db.from('productos').update({img_url:null}).eq('id',currentEditId);
   if(error){toast('Error quitando imagen','err');return;}
   const p=allProducts.find(p=>String(p.id)===String(currentEditId));
   if(p) p.img_url=null;
@@ -625,14 +625,14 @@ document.getElementById('imgModal').addEventListener('click',function(e){if(e.ta
 // ── LOGO TAB ──────────────────────────────────────────────
 async function loadAdminLogo() {
   try {
-    const {data}=await supabase.from('configuracion').select('valor').eq('clave','logo_url').single();
+    const {data}=await db.from('configuracion').select('valor').eq('clave','logo_url').single();
     if(data?.valor) applyLogoToAdmin(data.valor);
   } catch(e){}
 }
 async function loadLogoTab() {
   const preview=document.getElementById('logoPreviewAdmin');
   try {
-    const {data}=await supabase.from('configuracion').select('valor').eq('clave','logo_url').single();
+    const {data}=await db.from('configuracion').select('valor').eq('clave','logo_url').single();
     if(data?.valor){
       preview.innerHTML=`<img src="${data.valor}" alt="Logo actual">`;
       document.getElementById('btnDeleteLogo').style.display='block';
@@ -664,12 +664,12 @@ async function saveLogo() {
   btn.disabled=true; btn.textContent='Subiendo...';
   const ext=pendingLogoFile.name.split('.').pop().toLowerCase();
   const fileName=`logo-dtz-${Date.now()}.${ext}`;
-  const {error:upErr}=await supabase.storage.from('imagenes-productos').upload(fileName,pendingLogoFile,{upsert:true,contentType:pendingLogoFile.type});
+  const {error:upErr}=await db.storage.from('imagenes-productos').upload(fileName,pendingLogoFile,{upsert:true,contentType:pendingLogoFile.type});
   if(upErr){toast('Error subiendo logo: '+upErr.message,'err');btn.disabled=false;btn.textContent='💾 Guardar logo';return;}
-  const {data:urlData}=supabase.storage.from('imagenes-productos').getPublicUrl(fileName);
+  const {data:urlData}=db.storage.from('imagenes-productos').getPublicUrl(fileName);
   const logoUrl=urlData.publicUrl;
   // Upsert in configuracion table
-  await supabase.from('configuracion').upsert({clave:'logo_url',valor:logoUrl},{onConflict:'clave'});
+  await db.from('configuracion').upsert({clave:'logo_url',valor:logoUrl},{onConflict:'clave'});
   applyLogoToAdmin(logoUrl);
   document.getElementById('btnDeleteLogo').style.display='block';
   document.getElementById('btnSaveLogo').style.display='none';
@@ -679,7 +679,7 @@ async function saveLogo() {
   btn.disabled=false; btn.textContent='💾 Guardar logo';
 }
 async function deleteLogo() {
-  await supabase.from('configuracion').delete().eq('clave','logo_url');
+  await db.from('configuracion').delete().eq('clave','logo_url');
   document.getElementById('logoPreviewAdmin').innerHTML=`<div class="no-logo"><div class="icon">🖼</div><span>Sin logo cargado</span><span style="font-size:.72rem">Se muestra el texto "DTZ"</span></div>`;
   document.getElementById('btnDeleteLogo').style.display='none';
   document.getElementById('btnSaveLogo').style.display='none';
