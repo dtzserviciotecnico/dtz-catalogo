@@ -249,7 +249,8 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
       <button class="nav-btn active" data-tab="import" onclick="showTab('import',this)">📊 Importar</button>
       <button class="nav-btn" data-tab="products" onclick="showTab('products',this)">📦 Productos</button>
       <button class="nav-btn" data-tab="promotions" onclick="showTab('promotions',this)">🏷️ Promociones</button>
-      <button class="nav-btn" data-tab="logo" onclick="showTab('logo',this)">🖼 Logo</button>
+      <button class="nav-btn" data-tab="banners" onclick="showTab('banners',this)">🖼️ Banners</button>
+      <button class="nav-btn" data-tab="logo" onclick="showTab('logo',this)">🔷 Logo</button>
       <button class="nav-btn" data-tab="users" onclick="showTab('users',this)">👥 Usuarios</button>
     </nav>
     <div class="admin-right">
@@ -319,6 +320,60 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
       <tbody id="productsTbody"></tbody>
     </table>
     <div class="pagination" id="prodPagination"></div>
+  </div>
+
+  <!-- TAB: BANNERS -->
+  <div class="tab-content" id="tab-banners">
+    <div class="section-header"><h2>BANNERS DEL CATÁLOGO</h2></div>
+    <div class="promo-grid">
+
+      <!-- Subir banner -->
+      <div class="promo-card">
+        <h3>SUBIR NUEVO BANNER</h3>
+        <div class="form-group">
+          <label>Imagen del banner</label>
+          <div class="logo-drop" id="bannerDrop" onclick="document.getElementById('banner-file-input').click()" style="margin-bottom:0">
+            Hacé clic o arrastrá la imagen aquí<br>
+            <span style="font-size:.72rem;opacity:.6">JPG, PNG o WEBP · Máx. 1MB · Recomendado: 1200 × 400 px</span>
+          </div>
+          <input type="file" id="banner-file-input" accept="image/jpeg,image/png,image/webp" onchange="handleBannerFile(this.files[0])">
+        </div>
+        <div id="bannerPreviewWrap" style="display:none;margin:.75rem 0">
+          <img id="bannerPreviewImg" style="width:100%;border-radius:8px;border:1px solid var(--border2);max-height:160px;object-fit:cover">
+        </div>
+        <div class="form-group">
+          <label>Título (opcional)</label>
+          <input type="text" id="bannerTitulo" placeholder="Ej: ¡Ofertas de junio!" autocomplete="off" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:.65rem 1rem;color:var(--text);font-size:.9rem;font-family:'Inter',sans-serif;outline:none" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='rgba(255,255,255,0.08)'">
+        </div>
+        <div class="form-group">
+          <label>Subtítulo (opcional)</label>
+          <input type="text" id="bannerSubtitulo" placeholder="Ej: Descuentos en repuestos hasta 20%" autocomplete="off" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:.65rem 1rem;color:var(--text);font-size:.9rem;font-family:'Inter',sans-serif;outline:none" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='rgba(255,255,255,0.08)'">
+        </div>
+        <div class="form-group">
+          <label>Link al hacer clic (opcional)</label>
+          <input type="url" id="bannerLink" placeholder="https://..." autocomplete="off" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:.65rem 1rem;color:var(--text);font-size:.9rem;font-family:'Inter',sans-serif;outline:none" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='rgba(255,255,255,0.08)'">
+        </div>
+        <button class="btn-primary" id="btnUploadBanner" onclick="uploadBanner()" disabled>⬆ Subir banner</button>
+        <div class="info-box" style="margin-top:1rem">
+          <strong>Dimensiones recomendadas</strong><br>
+          <strong style="color:var(--teal)">1200 × 400 px</strong> (relación 3:1)<br>
+          Formato JPG o WEBP para menor peso.<br><br>
+          <strong>Comportamiento</strong><br>
+          Los banners rotan automáticamente cada 5 segundos.<br>
+          El orden se controla con las flechas ↑↓ de la lista.<br>
+          Podés pausar un banner sin borrarlo.
+        </div>
+      </div>
+
+      <!-- Lista de banners -->
+      <div class="promo-card">
+        <h3>BANNERS CONFIGURADOS</h3>
+        <div id="bannersTableWrap">
+          <div style="color:var(--muted);font-size:.85rem;padding:1rem 0">Cargando...</div>
+        </div>
+      </div>
+
+    </div>
   </div>
 
   <!-- TAB: LOGO -->
@@ -513,8 +568,8 @@ const PROD_PER_PAGE=50;
 
 // Tabs permitidos por rol
 const ROLE_TABS = {
-  superadmin: ['import','products','promotions','logo','users'],
-  admin:      ['import','products','promotions','logo'],
+  superadmin: ['import','products','promotions','banners','logo','users'],
+  admin:      ['import','products','promotions','banners','logo'],
   staff:      ['products']
 };
 function setupNavForRole(role) {
@@ -587,6 +642,7 @@ function showTab(tab,btn) {
   if(tab==='logo')       loadLogoTab();
   if(tab==='users')      loadUsersTab();
   if(tab==='promotions') loadPromosTab();
+  if(tab==='banners')    loadBannersTab();
 }
 
 // ── IMPORT ───────────────────────────────────────────────
@@ -1170,6 +1226,106 @@ async function doForgotPassword() {
     errEl.style.color = 'var(--ok)';
     errEl.textContent = '✔ Email enviado a ' + email + '. Revisá tu bandeja de entrada.';
   }
+}
+
+// ── BANNERS ──────────────────────────────────────────────
+let pendingBannerFile = null;
+const bannerDrop = document.getElementById('bannerDrop');
+bannerDrop.addEventListener('dragover', e=>{e.preventDefault();bannerDrop.classList.add('drag-over');});
+bannerDrop.addEventListener('dragleave', ()=>bannerDrop.classList.remove('drag-over'));
+bannerDrop.addEventListener('drop', e=>{e.preventDefault();bannerDrop.classList.remove('drag-over');handleBannerFile(e.dataTransfer.files[0]);});
+
+function handleBannerFile(file) {
+  if (!file) return;
+  if (file.size > 1.5*1024*1024) { toast('El archivo supera 1.5MB','err'); return; }
+  pendingBannerFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('bannerPreviewImg').src = e.target.result;
+    document.getElementById('bannerPreviewWrap').style.display = 'block';
+    document.getElementById('btnUploadBanner').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+async function uploadBanner() {
+  if (!pendingBannerFile) return;
+  const btn = document.getElementById('btnUploadBanner');
+  btn.disabled = true; btn.textContent = 'Subiendo...';
+  const ext  = pendingBannerFile.name.split('.').pop().toLowerCase();
+  const name = `banner-${Date.now()}.${ext}`;
+  const {error: upErr} = await db.storage.from('imagenes-productos').upload(name, pendingBannerFile, {upsert:true, contentType:pendingBannerFile.type});
+  if (upErr) { toast('Error subiendo: '+upErr.message,'err'); btn.disabled=false; btn.textContent='⬆ Subir banner'; return; }
+  const {data:urlData} = db.storage.from('imagenes-productos').getPublicUrl(name);
+  const {data: existing} = await db.from('banners').select('orden').order('orden',{ascending:false}).limit(1);
+  const nextOrden = (existing?.[0]?.orden ?? -1) + 1;
+  const {error: insErr} = await db.from('banners').insert({
+    img_url:    urlData.publicUrl,
+    titulo:     document.getElementById('bannerTitulo').value.trim()    || null,
+    subtitulo:  document.getElementById('bannerSubtitulo').value.trim() || null,
+    link_url:   document.getElementById('bannerLink').value.trim()      || null,
+    orden:      nextOrden,
+    activo:     true
+  });
+  btn.disabled=false; btn.textContent='⬆ Subir banner';
+  if (insErr) { toast('Error guardando banner: '+insErr.message,'err'); return; }
+  toast('✔ Banner subido','ok');
+  pendingBannerFile = null;
+  document.getElementById('bannerPreviewWrap').style.display = 'none';
+  document.getElementById('bannerTitulo').value    = '';
+  document.getElementById('bannerSubtitulo').value = '';
+  document.getElementById('bannerLink').value      = '';
+  document.getElementById('banner-file-input').value = '';
+  loadBannersTab();
+}
+async function loadBannersTab() {
+  const wrap = document.getElementById('bannersTableWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:1rem 0">Cargando...</div>';
+  const {data, error} = await db.from('banners').select('*').order('orden',{ascending:true});
+  if (error || !data?.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:1rem 0">No hay banners cargados aún.</div>';
+    return;
+  }
+  wrap.innerHTML = data.map((b,i) => `
+    <div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 0;border-bottom:1px solid var(--border2)">
+      <img src="${escHtml(b.img_url)}" style="width:90px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);flex-shrink:0">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.82rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(b.titulo||'Sin título')}</div>
+        ${b.subtitulo?`<div style="font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(b.subtitulo)}</div>`:''}
+        <span class="${b.activo?'badge-active':'badge-inactive'}" style="margin-top:3px;display:inline-block">${b.activo?'ACTIVO':'PAUSADO'}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.3rem;flex-shrink:0">
+        <button class="btn-sm" onclick="reorderBanner(${b.id},${b.orden},-1)" ${i===0?'disabled':''} title="Subir">↑</button>
+        <button class="btn-sm" onclick="reorderBanner(${b.id},${b.orden},1)" ${i===data.length-1?'disabled':''} title="Bajar">↓</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.3rem;flex-shrink:0">
+        <button class="btn-sm" onclick="toggleBanner(${b.id},${b.activo})" title="${b.activo?'Pausar':'Activar'}">${b.activo?'⏸':'▶'}</button>
+        <button class="btn-sm" onclick="deleteBanner(${b.id})" style="color:var(--danger)" title="Eliminar">🗑</button>
+      </div>
+    </div>`).join('');
+}
+async function toggleBanner(id, activo) {
+  const {error} = await db.from('banners').update({activo:!activo}).eq('id',id);
+  if (error) toast('Error','err');
+  else { toast(`Banner ${!activo?'activado':'pausado'}`,'ok'); loadBannersTab(); }
+}
+async function deleteBanner(id) {
+  if (!confirm('¿Eliminar este banner permanentemente?')) return;
+  const {error} = await db.from('banners').delete().eq('id',id);
+  if (error) toast('Error eliminando banner','err');
+  else { toast('Banner eliminado','info'); loadBannersTab(); }
+}
+async function reorderBanner(id, currentOrden, dir) {
+  const {data} = await db.from('banners').select('id,orden').order('orden',{ascending:true});
+  if (!data) return;
+  const idx = data.findIndex(b=>b.id===id);
+  const swapIdx = idx + dir;
+  if (swapIdx<0||swapIdx>=data.length) return;
+  const swapId    = data[swapIdx].id;
+  const swapOrden = data[swapIdx].orden;
+  await db.from('banners').update({orden:swapOrden}).eq('id',id);
+  await db.from('banners').update({orden:currentOrden}).eq('id',swapId);
+  loadBannersTab();
 }
 
 checkSession();
