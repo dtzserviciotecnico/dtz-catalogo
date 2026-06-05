@@ -251,6 +251,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
       <button class="nav-btn" data-tab="promotions" onclick="showTab('promotions',this)">🏷️ Promociones</button>
       <button class="nav-btn" data-tab="banners" onclick="showTab('banners',this)">🖼️ Banners</button>
       <button class="nav-btn" data-tab="logo" onclick="showTab('logo',this)">🔷 Logo</button>
+      <button class="nav-btn" data-tab="audit" onclick="showTab('audit',this)">📊 Auditoría</button>
       <button class="nav-btn" data-tab="users" onclick="showTab('users',this)">👥 Usuarios</button>
     </nav>
     <div class="admin-right">
@@ -455,6 +456,23 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
     </div>
   </div>
 
+  <!-- TAB: AUDIT -->
+  <div class="tab-content" id="tab-audit">
+    <div class="section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
+      <h2>AUDITORÍA DE CAMBIOS</h2>
+      <button class="btn-primary" id="btnExportAudit" onclick="exportAuditExcel()" disabled style="width:auto;padding:.55rem 1.25rem">
+        📥 Exportar Excel
+      </button>
+    </div>
+    <div class="info-box" style="margin-bottom:1.25rem">
+      Registro de todas las acciones realizadas por los usuarios del panel.<br>
+      Muestra los últimos <strong>200 registros</strong>. Exportá a Excel para ver el historial completo.
+    </div>
+    <div id="auditTableWrap" style="overflow-x:auto">
+      <div style="color:var(--muted);font-size:.85rem;padding:1rem 0">Abrí el tab para cargar los datos.</div>
+    </div>
+  </div>
+
   <!-- TAB: USERS -->
   <div class="tab-content" id="tab-users">
     <div class="section-header"><h2>GESTIÓN DE USUARIOS</h2></div>
@@ -568,8 +586,8 @@ const PROD_PER_PAGE=50;
 
 // Tabs permitidos por rol
 const ROLE_TABS = {
-  superadmin: ['import','products','promotions','banners','logo','users'],
-  admin:      ['import','products','promotions','banners','logo'],
+  superadmin: ['import','products','promotions','banners','logo','users','audit'],
+  admin:      ['import','products','promotions','banners','logo','audit'],
   staff:      ['products']
 };
 function setupNavForRole(role) {
@@ -643,6 +661,7 @@ function showTab(tab,btn) {
   if(tab==='users')      loadUsersTab();
   if(tab==='promotions') loadPromosTab();
   if(tab==='banners')    loadBannersTab();
+  if(tab==='audit')      loadAuditTab();
 }
 
 // ── IMPORT ───────────────────────────────────────────────
@@ -863,6 +882,7 @@ async function saveImage() {
   else {
     toast('✔ Imagen guardada','ok');
     const p=allProducts.find(p=>String(p.id)===String(currentEditId));
+    logAction('IMAGEN_SUBIR', p?.code, p?.name, `Imagen actualizada`);
     if(p) p.img_url=urlData.publicUrl;
     filteredProducts=[...allProducts];
     renderTable(currentProdPage);
@@ -875,6 +895,7 @@ async function deleteImage() {
   const {error}=await db.from('productos').update({img_url:null}).eq('id',currentEditId);
   if(error){toast('Error quitando imagen','err');return;}
   const p=allProducts.find(p=>String(p.id)===String(currentEditId));
+  logAction('IMAGEN_ELIMINAR', p?.code, p?.name, 'Imagen eliminada');
   if(p) p.img_url=null;
   filteredProducts=[...allProducts];
   renderTable(currentProdPage);
@@ -940,11 +961,13 @@ async function saveLogo() {
   document.getElementById('btnSaveLogo').style.display='none';
   pendingLogoFile=null;
   document.getElementById('logo-file-input').value='';
+  logAction('LOGO_CAMBIAR', null, null, 'Logo del catálogo actualizado');
   toast('✔ Logo actualizado. Ya se ve en el catálogo.','ok');
   btn.disabled=false; btn.textContent='💾 Guardar logo';
 }
 async function deleteLogo() {
   await db.from('configuracion').delete().eq('clave','logo_url');
+  logAction('LOGO_ELIMINAR', null, null, 'Logo del catálogo eliminado');
   document.getElementById('logoPreviewAdmin').innerHTML=`<div class="no-logo"><div class="icon">🖼</div><span>Sin logo cargado</span><span style="font-size:.72rem">Se muestra el texto "DTZ"</span></div>`;
   document.getElementById('btnDeleteLogo').style.display='none';
   document.getElementById('btnSaveLogo').style.display='none';
@@ -1096,7 +1119,11 @@ async function toggleUserRole(userId, currentRole) {
   const newRole = currentRole === 'admin' ? 'staff' : 'admin';
   const {error} = await db.from('profiles').update({ role: newRole }).eq('id', userId);
   if (error) toast('Error actualizando rol', 'err');
-  else { toast('Rol cambiado a ' + newRole, 'ok'); loadUsersTab(); }
+  else {
+    logAction('USUARIO_ROL', null, userEmail, `Rol cambiado de ${currentRole} a ${newRole}`);
+    toast('Rol cambiado a ' + newRole, 'ok');
+    loadUsersTab();
+  }
 }
 
 // ── PROMOTIONS ────────────────────────────────────────────
@@ -1137,6 +1164,7 @@ async function createPromo() {
   const {error} = await db.from('promotions').insert({nombre, min_cantidad:minQty, descuento_pct:descuento, activo:true});
   btn.disabled=false; btn.textContent='+ Crear promoción';
   if (error) { toast('Error: '+error.message,'err'); return; }
+  logAction('PROMO_CREAR', null, nombre, `${minQty}+ productos → ${descuento}% descuento`);
   toast('✔ Promoción creada','ok');
   document.getElementById('promoNombre').value='';
   document.getElementById('promoMinQty').value='';
@@ -1144,15 +1172,25 @@ async function createPromo() {
   loadPromosTab();
 }
 async function togglePromo(id, activo) {
+  const {data:pd} = await db.from('promotions').select('nombre').eq('id',id).single();
   const {error} = await db.from('promotions').update({activo:!activo}).eq('id',id);
   if (error) toast('Error actualizando promoción','err');
-  else { toast(`Promoción ${!activo?'activada':'pausada'}`,'ok'); loadPromosTab(); }
+  else {
+    logAction('PROMO_ACTIVAR', null, pd?.nombre, !activo?'Activada':'Pausada');
+    toast(`Promoción ${!activo?'activada':'pausada'}`,'ok');
+    loadPromosTab();
+  }
 }
 async function deletePromo(id) {
   if (!confirm('¿Eliminar esta promoción permanentemente?')) return;
+  const {data:pd} = await db.from('promotions').select('nombre').eq('id',id).single();
   const {error} = await db.from('promotions').delete().eq('id',id);
   if (error) toast('Error eliminando promoción','err');
-  else { toast('Promoción eliminada','info'); loadPromosTab(); }
+  else {
+    logAction('PROMO_ELIMINAR', null, pd?.nombre, 'Promoción eliminada');
+    toast('Promoción eliminada','info');
+    loadPromosTab();
+  }
 }
 
 // ── PRODUCT OVERRIDES ─────────────────────────────────────
@@ -1185,7 +1223,10 @@ async function saveOverride() {
     { onConflict:'code' }
   );
   if (error) { toast('Error: '+error.message,'err'); return; }
-  // Actualizar cache local
+  const parts = [];
+  if (displayName) parts.push(`Nombre web: "${displayName}"`);
+  if (custom_price !== null) parts.push(`Precio web: $${custom_price}`);
+  logAction('OVERRIDE_GUARDAR', currentOverrideCode, null, parts.join(' | ') || 'Sin cambios');
   if (displayName || custom_price !== null)
     allOverrides[currentOverrideCode] = { code:currentOverrideCode, display_name:displayName, custom_price };
   else
@@ -1198,6 +1239,7 @@ async function clearOverride() {
   if (!currentOverrideCode) return;
   const {error} = await db.from('product_overrides').delete().eq('code',currentOverrideCode);
   if (error) { toast('Error eliminando override','err'); return; }
+  logAction('OVERRIDE_ELIMINAR', currentOverrideCode, null, 'Vuelve a datos de Odoo');
   delete allOverrides[currentOverrideCode];
   toast('Override eliminado — vuelve a mostrar datos de Odoo','info');
   closeOverrideModal();
@@ -1268,6 +1310,8 @@ async function uploadBanner() {
   });
   btn.disabled=false; btn.textContent='⬆ Subir banner';
   if (insErr) { toast('Error guardando banner: '+insErr.message,'err'); return; }
+  const bTitulo = document.getElementById('bannerTitulo').value.trim();
+  logAction('BANNER_SUBIR', null, bTitulo||'Sin título', 'Banner subido al carousel');
   toast('✔ Banner subido','ok');
   pendingBannerFile = null;
   document.getElementById('bannerPreviewWrap').style.display = 'none';
@@ -1305,15 +1349,25 @@ async function loadBannersTab() {
     </div>`).join('');
 }
 async function toggleBanner(id, activo) {
+  const {data:bd} = await db.from('banners').select('titulo').eq('id',id).single();
   const {error} = await db.from('banners').update({activo:!activo}).eq('id',id);
   if (error) toast('Error','err');
-  else { toast(`Banner ${!activo?'activado':'pausado'}`,'ok'); loadBannersTab(); }
+  else {
+    logAction('BANNER_ACTIVAR', null, bd?.titulo||'Sin título', !activo?'Activado':'Pausado');
+    toast(`Banner ${!activo?'activado':'pausado'}`,'ok');
+    loadBannersTab();
+  }
 }
 async function deleteBanner(id) {
   if (!confirm('¿Eliminar este banner permanentemente?')) return;
+  const {data:bd} = await db.from('banners').select('titulo').eq('id',id).single();
   const {error} = await db.from('banners').delete().eq('id',id);
   if (error) toast('Error eliminando banner','err');
-  else { toast('Banner eliminado','info'); loadBannersTab(); }
+  else {
+    logAction('BANNER_ELIMINAR', null, bd?.titulo||'Sin título', 'Banner eliminado');
+    toast('Banner eliminado','info');
+    loadBannersTab();
+  }
 }
 async function reorderBanner(id, currentOrden, dir) {
   const {data} = await db.from('banners').select('id,orden').order('orden',{ascending:true});
@@ -1326,6 +1380,83 @@ async function reorderBanner(id, currentOrden, dir) {
   await db.from('banners').update({orden:swapOrden}).eq('id',id);
   await db.from('banners').update({orden:currentOrden}).eq('id',swapId);
   loadBannersTab();
+}
+
+// ── AUDIT LOG ─────────────────────────────────────────
+async function logAction(actionType, entityCode, entityName, detalle) {
+  if (!currentUser || !currentUserProfile) return;
+  try {
+    await db.from('audit_log').insert({
+      user_email:  currentUser.email,
+      user_name:   currentUserProfile.display_name || currentUser.email,
+      user_role:   currentUserProfile.role,
+      action_type: actionType,
+      entity_code: entityCode || null,
+      entity_name: entityName || null,
+      detalle:     detalle || null
+    });
+  } catch(e) {}
+}
+
+async function loadAuditTab() {
+  const wrap = document.getElementById('auditTableWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:1rem 0">Cargando...</div>';
+  const {data, error} = await db.from('audit_log')
+    .select('*').order('created_at', {ascending: false}).limit(200);
+  document.getElementById('btnExportAudit').disabled = false;
+  if (error || !data?.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:1rem 0">No hay acciones registradas aún.</div>';
+    return;
+  }
+  const ACTION_LABELS = {
+    IMAGEN_SUBIR:'🖼 Imagen subida', IMAGEN_ELIMINAR:'🖼 Imagen eliminada',
+    OVERRIDE_GUARDAR:'✏️ Override guardado', OVERRIDE_ELIMINAR:'✏️ Override eliminado',
+    PROMO_CREAR:'🏷️ Promo creada', PROMO_ACTIVAR:'🏷️ Promo activada/pausada', PROMO_ELIMINAR:'🏷️ Promo eliminada',
+    BANNER_SUBIR:'🖼️ Banner subido', BANNER_ACTIVAR:'🖼️ Banner activado/pausado', BANNER_ELIMINAR:'🖼️ Banner eliminado',
+    LOGO_CAMBIAR:'🔷 Logo cambiado', LOGO_ELIMINAR:'🔷 Logo eliminado',
+    USUARIO_CREAR:'👥 Usuario creado', USUARIO_ROL:'👥 Rol cambiado'
+  };
+  wrap.innerHTML = `<table class="promo-table" style="font-size:.8rem">
+    <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Rol</th><th>Acción</th><th>Código</th><th>Elemento</th><th>Detalle</th></tr></thead>
+    <tbody>${data.map(r => {
+      const dt = new Date(r.created_at);
+      const fecha = dt.toLocaleDateString('es-AR') + ' ' + dt.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+      return `<tr>
+        <td style="white-space:nowrap;color:var(--muted)">${fecha}</td>
+        <td style="font-weight:500">${escHtml(r.user_name||r.user_email)}</td>
+        <td><span class="${r.user_role==='superadmin'?'badge-super':r.user_role==='admin'?'badge-active':'badge-inactive'}">${(r.user_role||'').toUpperCase()}</span></td>
+        <td style="white-space:nowrap">${ACTION_LABELS[r.action_type]||r.action_type}</td>
+        <td style="font-family:'Rajdhani',sans-serif;color:var(--teal)">${r.entity_code?'['+escHtml(r.entity_code)+']':'—'}</td>
+        <td>${escHtml(r.entity_name||'—')}</td>
+        <td style="color:var(--muted)">${escHtml(r.detalle||'—')}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function exportAuditExcel() {
+  const rows = document.querySelectorAll('#auditTableWrap table tbody tr');
+  if (!rows.length) return;
+  const headers = ['Fecha y hora','Usuario','Rol','Acción','Código','Elemento','Detalle'];
+  const data = [headers];
+  rows.forEach(tr => {
+    const cells = tr.querySelectorAll('td');
+    data.push([
+      cells[0]?.innerText||'',
+      cells[1]?.innerText||'',
+      cells[2]?.innerText||'',
+      cells[3]?.innerText||'',
+      cells[4]?.innerText||'',
+      cells[5]?.innerText||'',
+      cells[6]?.innerText||''
+    ]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [14,22,12,22,12,22,30].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Auditoría');
+  const fecha = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `DTZ_auditoria_${fecha}.xlsx`);
 }
 
 checkSession();
