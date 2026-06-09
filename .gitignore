@@ -1,8 +1,10 @@
-# Archivos SQL (Bloqueados temporalmente a pedido del usuario)
-scripts_sql/
+# Archivos SQL
+# (Desbloqueados para mostrar perfil Backend en Portfolio)
+# scripts_sql/
 
 # Guías, planes y documentación interna del desarrollador
-guias_y_planes/
+# (Desbloqueados para el portfolio)
+# guias_y_planes/
 
 # Archivos de entorno y configuración sensible
 .env
