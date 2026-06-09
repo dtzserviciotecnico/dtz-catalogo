@@ -1,5 +1,5 @@
-# Archivos SQL
-# (Los hemos movido a la carpeta scripts_sql para tenerlos versionados)
+# Archivos SQL (Bloqueados temporalmente a pedido del usuario)
+scripts_sql/
 
 # Guías, planes y documentación interna del desarrollador
 guias_y_planes/
