@@ -1,5 +1,5 @@
-# Archivos SQL de setup — ejecutar manualmente en Supabase, no subir al repo
-*.sql
+# Archivos SQL
+# (Los hemos movido a la carpeta scripts_sql para tenerlos versionados)
 
 # Guías, planes y documentación interna del desarrollador
 guias_y_planes/

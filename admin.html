@@ -644,6 +644,18 @@ function setupNavForRole(role) {
 
 // ── AUTH ─────────────────────────────────────────────────
 async function checkSession() {
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      const newPass = prompt('Ingresá tu nueva contraseña:');
+      if (newPass) {
+        const {error} = await db.auth.updateUser({ password: newPass });
+        if (error) alert('Error: ' + error.message);
+        else alert('Contraseña actualizada con éxito. Ya podés ingresar.');
+      }
+      window.location.hash = ''; // Limpiar la URL
+    }
+  });
+
   const {data:{session}} = await db.auth.getSession();
   if (session) showAdmin(session.user);
   else await loadLoginLogo();
@@ -1163,8 +1175,12 @@ async function deleteUser(userId, userName) {
   if (!confirm(`¿Eliminar al usuario "${userName}" permanentemente?\nEsta acción no se puede deshacer.`)) return;
   // Eliminar perfil (la cuenta de auth solo puede borrarse con service_role key,
   // pero borrando el profile se pierde el acceso al panel)
-  const {error} = await db.from('profiles').delete().eq('id', userId);
+  const {data, error} = await db.from('profiles').delete().eq('id', userId).select();
   if (error) { toast('Error eliminando usuario: ' + error.message, 'err'); return; }
+  if (!data || data.length === 0) {
+    toast('No se pudo eliminar. Permisos insuficientes (falta política RLS) o ya fue borrado.', 'err');
+    return;
+  }
   logAction('USUARIO_ELIMINAR', null, userName, 'Usuario eliminado del sistema');
   toast(`Usuario "${userName}" eliminado`, 'info');
   loadUsersTab();
@@ -1387,10 +1403,27 @@ async function loadBannersTab() {
         <button class="btn-sm" onclick="reorderBanner(${b.id},${b.orden},1)" ${i===data.length-1?'disabled':''} title="Bajar">↓</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:.3rem;flex-shrink:0">
+        <button class="btn-sm" onclick="editBannerText(${b.id},'${escHtml(b.titulo||'')}','${escHtml(b.subtitulo||'')}','${escHtml(b.link_url||'')}')" title="Editar textos">✏️</button>
         <button class="btn-sm" onclick="toggleBanner(${b.id},${b.activo})" title="${b.activo?'Pausar':'Activar'}">${b.activo?'⏸':'▶'}</button>
         <button class="btn-sm" onclick="deleteBanner(${b.id})" style="color:var(--danger)" title="Eliminar">🗑</button>
       </div>
     </div>`).join('');
+}
+async function editBannerText(id, oldTitle, oldSubtitle, oldLink) {
+  const newTitle = prompt('Editar Título:', oldTitle);
+  if (newTitle === null) return; // Cancelado
+  const newSubtitle = prompt('Editar Subtítulo (opcional):', oldSubtitle);
+  if (newSubtitle === null) return;
+  const newLink = prompt('Editar Link al hacer clic (opcional):', oldLink);
+  if (newLink === null) return;
+
+  const {error} = await db.from('banners').update({titulo: newTitle, subtitulo: newSubtitle, link_url: newLink}).eq('id', id);
+  if (error) toast('Error actualizando banner', 'err');
+  else {
+    logAction('BANNER_EDITAR', null, newTitle, 'Textos/Link del banner modificados');
+    toast('Banner editado', 'ok');
+    loadBannersTab();
+  }
 }
 async function toggleBanner(id, activo) {
   const {data:bd} = await db.from('banners').select('titulo').eq('id',id).single();
