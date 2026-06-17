@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Reparaciones - DTZ</title>
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --teal:#2DD4BF;--teal-dark:#0F9583;--teal-glow:rgba(45,212,191,0.13);
+      --bg:#0a0a0a;--surface:#111;--surface2:#1a1a1a;--surface3:#222;
+      --border:rgba(45,212,191,0.2);--border2:rgba(255,255,255,0.08);
+      --text:#f0f0f0;--muted:#777;--danger:#ef4444;--warn:#f59e0b;--ok:#22c55e;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;overflow-x:hidden}
+
+    /* HEADER */
+    .header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 1rem;display:flex;align-items:center;height:60px;position:sticky;top:0;z-index:100;justify-content:space-between}
+    .header-left{display:flex;align-items:center;gap:.75rem}
+    .btn-back{background:none;border:none;color:var(--teal);font-size:1.5rem;cursor:pointer;padding:0 .5rem}
+    .logo-text{font-family:'Rajdhani',sans-serif;font-size:1.2rem;letter-spacing:1px;color:#fff;font-weight:700}
+    .header-right{display:flex;align-items:center;gap:.5rem}
+    .user-chip{font-size:.75rem;color:var(--muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+    /* TOAST */
+    #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:.75rem 1.5rem;border-radius:30px;font-size:.85rem;z-index:10000;opacity:0;pointer-events:none;transition:opacity .3s;box-shadow:0 4px 12px rgba(0,0,0,.5);white-space:nowrap}
+    #toast.show{opacity:1}
+    #toast.ok{background:var(--teal);color:#000;font-weight:600}
+    #toast.err{background:var(--danger);color:#fff;font-weight:600}
+
+    /* MAIN CONTAINER */
+    .container{padding:1rem;max-width:800px;margin:0 auto}
+
+    /* TOOLBAR */
+    .toolbar{display:flex;gap:.5rem;margin-bottom:1rem;position:sticky;top:70px;z-index:90;background:var(--bg);padding-bottom:.5rem}
+    .search-input{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:.75rem;color:var(--text);font-size:.9rem;outline:none}
+    .search-input:focus{border-color:var(--teal)}
+    .btn-primary{background:var(--teal);border:none;color:#000;padding:.75rem 1rem;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;white-space:nowrap}
+    .btn-primary:active{opacity:.8}
+
+    /* LIST */
+    .rep-list{display:flex;flex-direction:column;gap:.75rem;padding-bottom:5rem}
+    .rep-card{background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:1rem;cursor:pointer;transition:border-color .2s}
+    .rep-card:active{border-color:var(--teal)}
+    .rep-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem}
+    .rep-client{font-weight:600;font-size:1rem;color:#fff}
+    .rep-ord{font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--teal);font-size:.9rem;background:var(--teal-glow);padding:2px 6px;border-radius:4px}
+    .rep-model{font-size:.85rem;color:var(--muted);margin-bottom:.5rem}
+    .rep-footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border2);padding-top:.75rem;margin-top:.5rem}
+    .rep-badge{font-size:.7rem;padding:3px 8px;border-radius:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+    .st-ingresado{background:rgba(255,255,255,.1);color:#fff}
+    .st-revision{background:rgba(245,158,11,.15);color:var(--warn)}
+    .st-esperando{background:rgba(239,68,68,.15);color:var(--danger)}
+    .st-reparado{background:rgba(45,212,191,.15);color:var(--teal)}
+    .st-entregado{background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border2)}
+    .st-cancelado{background:rgba(239,68,68,.05);color:var(--muted);border:1px solid rgba(239,68,68,.3)}
+    
+    .rep-balance{font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700}
+    .bal-deuda{color:var(--warn)}
+    .bal-pagado{color:var(--ok)}
+
+    /* SLIDING PANEL (FORM) */
+    .panel-overlay{position:fixed;inset:0;background:var(--bg);z-index:200;transform:translateX(100%);transition:transform .3s ease-out;display:flex;flex-direction:column;overflow:hidden}
+    .panel-overlay.open{transform:translateX(0)}
+    .panel-header{display:flex;align-items:center;justify-content:space-between;padding:1rem;border-bottom:1px solid var(--border);background:var(--surface)}
+    .panel-title{font-family:'Rajdhani',sans-serif;font-size:1.2rem;color:var(--teal)}
+    .panel-body{flex:1;overflow-y:auto;padding:1rem;padding-bottom:5rem}
+    
+    .form-group{margin-bottom:1rem}
+    .form-group label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:.3rem}
+    .form-group input, .form-group select, .form-group textarea{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:.75rem;color:var(--text);font-size:.9rem;font-family:'Inter',sans-serif;outline:none}
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus{border-color:var(--teal)}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+    textarea{resize:vertical;min-height:80px}
+
+    /* PAYMENTS SECTION */
+    .pay-section{margin-top:1.5rem;border-top:1px dashed var(--border2);padding-top:1.5rem}
+    .pay-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+    .pay-header h3{font-size:1rem;color:#fff}
+    .btn-sm{background:var(--surface3);border:1px solid var(--border2);color:#fff;padding:.4rem .75rem;border-radius:6px;font-size:.8rem;cursor:pointer}
+    .pay-list{display:flex;flex-direction:column;gap:.5rem;margin-bottom:1rem}
+    .pay-item{display:flex;justify-content:space-between;background:var(--surface2);padding:.6rem;border-radius:6px;font-size:.85rem}
+    .pay-item-date{color:var(--muted);font-size:.75rem}
+    .pay-item-amount{font-weight:600;color:var(--ok)}
+    
+    .summary-box{background:var(--teal-glow);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-top:1rem}
+    .summary-row{display:flex;justify-content:space-between;margin-bottom:.4rem;font-size:.9rem}
+    .summary-total{display:flex;justify-content:space-between;margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border);font-weight:700;font-size:1.1rem;color:var(--teal)}
+
+    /* ACTION BAR */
+    .action-bar{position:fixed;bottom:0;left:0;right:0;padding:1rem;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:.75rem;z-index:210}
+    .btn-save{flex:1;background:var(--teal);border:none;color:#000;padding:.85rem;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer}
+
+    /* PAYMENT MODAL */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;display:none;align-items:center;justify-content:center;padding:1rem}
+    .modal-content{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:350px;padding:1.5rem}
+    .modal-content h3{margin-bottom:1rem;color:#fff}
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <button class="btn-back" onclick="window.location.href='admin.html'">‹</button>
+      <div class="logo-text">REPARACIONES</div>
+    </div>
+    <div class="header-right">
+      <span class="user-chip" id="userEmail">Cargando...</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="toolbar">
+      <input type="text" id="searchInput" class="search-input" placeholder="Buscar cliente o nro orden..." autocomplete="off">
+      <button class="btn-primary" onclick="openPanel()">+ Nueva</button>
+    </div>
+
+    <div class="rep-list" id="repList">
+      <div style="text-align:center;color:var(--muted);margin-top:2rem">Cargando reparaciones...</div>
+    </div>
+  </div>
+
+  <!-- SLIDING FORM PANEL -->
+  <div class="panel-overlay" id="formPanel">
+    <div class="panel-header">
+      <button class="btn-back" onclick="closePanel()">‹</button>
+      <div class="panel-title" id="panelTitle">NUEVA REPARACIÓN</div>
+      <div style="width:24px"></div>
+    </div>
+    <div class="panel-body">
+      <input type="hidden" id="f_id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nro Orden Físico</label>
+          <input type="text" id="f_orden" placeholder="Ej: A-101" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select id="f_estado">
+            <option value="Ingresado">Ingresado</option>
+            <option value="En revisión">En revisión</option>
+            <option value="Esperando repuesto">Esperando repuesto</option>
+            <option value="Reparado">Reparado</option>
+            <option value="Entregado">Entregado</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Cliente *</label>
+        <input type="text" id="f_cliente" placeholder="Nombre completo" autocomplete="off">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Teléfono / WhatsApp</label>
+          <input type="tel" id="f_telefono" placeholder="3415551234" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Modelo Equipo</label>
+          <input type="text" id="f_equipo" placeholder="Ej: iPhone 11" autocomplete="off">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Contraseña / Patrón</label>
+        <input type="text" id="f_clave" placeholder="PIN, Patrón o 'Sin clave'" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Fallas detectadas / Notas</label>
+        <textarea id="f_fallas" placeholder="Describe el problema que reporta el cliente..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Presupuesto Total ($)</label>
+        <input type="number" id="f_presupuesto" placeholder="0" autocomplete="off" oninput="renderPaymentsUI()">
+      </div>
+
+      <!-- PAYMENTS -->
+      <div class="pay-section" id="paySection" style="display:none">
+        <div class="pay-header">
+          <h3>Historial de Pagos</h3>
+          <button class="btn-sm" onclick="openPayModal()">+ Pago</button>
+        </div>
+        <div class="pay-list" id="payList"></div>
+        <div class="summary-box">
+          <div class="summary-row"><span>Presupuesto</span><span id="sumTotal">$0</span></div>
+          <div class="summary-row"><span>Abonado</span><span id="sumPagado">$0</span></div>
+          <div class="summary-total"><span>Saldo a pagar</span><span id="sumSaldo">$0</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="action-bar">
+      <button class="btn-save" id="btnSave" onclick="saveRepair()">GUARDAR ORDEN</button>
+    </div>
+  </div>
+
+  <!-- ADD PAYMENT MODAL -->
+  <div class="modal-overlay" id="payModal">
+    <div class="modal-content">
+      <h3>Registrar Pago</h3>
+      <div class="form-group">
+        <label>Monto ($)</label>
+        <input type="number" id="pm_monto" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label>Método</label>
+        <select id="pm_metodo">
+          <option value="efectivo">Efectivo</option>
+          <option value="debito">Débito</option>
+          <option value="credito">Crédito (C/Recargo)</option>
+          <option value="transferencia">Transferencia</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:1rem;margin-top:1.5rem">
+        <button class="btn-sm" style="flex:1" onclick="closePayModal()">Cancelar</button>
+        <button class="btn-primary" style="flex:1;padding:.5rem" onclick="addPayment()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+  const db = window.supabase.createClient(DTZ_CONFIG.supabaseUrl, DTZ_CONFIG.supabaseAnonKey);
+  let currentUser = null;
+  let allRepairs = [];
+  let currentPayments = [];
+
+  // Init
+  window.onload = async () => {
+    const {data:{session}} = await db.auth.getSession();
+    if (!session) {
+      window.location.href = 'admin.html';
+      return;
+    }
+    currentUser = session.user;
+    
+    // Cargar nombre si hay caché (como hicimos en admin)
+    const cachedName = localStorage.getItem('dtz_user_name_' + currentUser.id);
+    document.getElementById('userEmail').textContent = cachedName || currentUser.email;
+
+    loadRepairs();
+  };
+
+  // Toast
+  function toast(msg, type='ok') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'show ' + type;
+    setTimeout(() => el.classList.remove('show'), 3000);
+  }
+
+  // Cargar lista
+  async function loadRepairs() {
+    const {data, error} = await db.from('reparaciones').select('*').order('id', {ascending: false});
+    if (error) { toast('Error cargando reparaciones', 'err'); return; }
+    allRepairs = data;
+    renderRepairs();
+  }
+
+  function renderRepairs() {
+    const term = document.getElementById('searchInput').value.toLowerCase().trim();
+    const list = document.getElementById('repList');
+    
+    let filtered = allRepairs;
+    if (term) {
+      filtered = allRepairs.filter(r => 
+        (r.cliente||'').toLowerCase().includes(term) || 
+        (r.nro_orden||'').toLowerCase().includes(term) ||
+        String(r.id).includes(term)
+      );
+    }
+
+    if (filtered.length === 0) {
+      list.innerHTML = `<div style="text-align:center;color:var(--muted);margin-top:2rem">No se encontraron órdenes.</div>`;
+      return;
+    }
+
+    list.innerHTML = filtered.map(r => {
+      // Calcular pagos
+      const pagos = r.historial_pagos || [];
+      const totalPagado = pagos.reduce((sum, p) => sum + Number(p.monto), 0);
+      const saldo = Math.max(0, (r.presupuesto||0) - totalPagado);
+      
+      // Estado clase
+      const eMap = {
+        'ingresado': 'st-ingresado',
+        'en revisión': 'st-revision',
+        'esperando repuesto': 'st-esperando',
+        'reparado': 'st-reparado',
+        'entregado': 'st-entregado',
+        'cancelado': 'st-cancelado'
+      };
+      const stClass = eMap[(r.estado||'').toLowerCase()] || 'st-ingresado';
+      
+      const balStr = saldo === 0 && (r.presupuesto||0) > 0 
+        ? `<span class="bal-pagado">✔ PAGADO</span>` 
+        : `<span class="bal-deuda">Saldo: $${saldo.toLocaleString('es-AR')}</span>`;
+
+      return `
+      <div class="rep-card" onclick="openEdit(${r.id})">
+        <div class="rep-header">
+          <div class="rep-client">${r.cliente}</div>
+          <div class="rep-ord">${r.nro_orden ? r.nro_orden : '#'+r.id}</div>
+        </div>
+        <div class="rep-model">${r.equipo || 'Sin modelo'}</div>
+        <div class="rep-footer">
+          <span class="rep-badge ${stClass}">${r.estado}</span>
+          <span class="rep-balance">${r.presupuesto > 0 ? balStr : '$0'}</span>
+        </div>
+      </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('searchInput').addEventListener('input', renderRepairs);
+
+  // Panel Handlers
+  function openPanel() {
+    document.getElementById('formPanel').classList.add('open');
+    document.getElementById('f_id').value = '';
+    document.getElementById('panelTitle').textContent = 'NUEVA REPARACIÓN';
+    document.getElementById('f_orden').value = '';
+    document.getElementById('f_cliente').value = '';
+    document.getElementById('f_telefono').value = '';
+    document.getElementById('f_equipo').value = '';
+    document.getElementById('f_clave').value = '';
+    document.getElementById('f_fallas').value = '';
+    document.getElementById('f_presupuesto').value = '';
+    document.getElementById('f_estado').value = 'Ingresado';
+    
+    currentPayments = [];
+    document.getElementById('paySection').style.display = 'none';
+  }
+
+  function closePanel() {
+    document.getElementById('formPanel').classList.remove('open');
+  }
+
+  function openEdit(id) {
+    const r = allRepairs.find(x => x.id === id);
+    if (!r) return;
+    openPanel();
+    document.getElementById('panelTitle').textContent = 'EDITAR ORDEN ' + (r.nro_orden || '#'+r.id);
+    document.getElementById('f_id').value = r.id;
+    document.getElementById('f_orden').value = r.nro_orden || '';
+    document.getElementById('f_cliente').value = r.cliente || '';
+    document.getElementById('f_telefono').value = r.telefono || '';
+    document.getElementById('f_equipo').value = r.equipo || '';
+    document.getElementById('f_clave').value = r.codigo_desbloqueo || '';
+    document.getElementById('f_fallas').value = r.fallas || '';
+    document.getElementById('f_presupuesto').value = r.presupuesto || '';
+    document.getElementById('f_estado').value = r.estado || 'Ingresado';
+    
+    currentPayments = r.historial_pagos || [];
+    document.getElementById('paySection').style.display = 'block';
+    renderPaymentsUI();
+  }
+
+  // Payments
+  function renderPaymentsUI() {
+    const pres = Number(document.getElementById('f_presupuesto').value) || 0;
+    const pagado = currentPayments.reduce((s, p) => s + Number(p.monto), 0);
+    const saldo = Math.max(0, pres - pagado);
+
+    document.getElementById('sumTotal').textContent = '$' + pres.toLocaleString('es-AR');
+    document.getElementById('sumPagado').textContent = '$' + pagado.toLocaleString('es-AR');
+    document.getElementById('sumSaldo').textContent = '$' + saldo.toLocaleString('es-AR');
+
+    const list = document.getElementById('payList');
+    if (currentPayments.length === 0) {
+      list.innerHTML = '<div style="font-size:.8rem;color:var(--muted)">No hay pagos registrados.</div>';
+    } else {
+      list.innerHTML = currentPayments.map(p => {
+        const d = new Date(p.fecha).toLocaleDateString('es-AR');
+        return `<div class="pay-item">
+          <div><span style="text-transform:capitalize">${p.metodo}</span> <span class="pay-item-date">· ${d}</span></div>
+          <div class="pay-item-amount">$${Number(p.monto).toLocaleString('es-AR')}</div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  function openPayModal() {
+    document.getElementById('pm_monto').value = '';
+    document.getElementById('payModal').style.display = 'flex';
+  }
+  function closePayModal() {
+    document.getElementById('payModal').style.display = 'none';
+  }
+  function addPayment() {
+    const monto = Number(document.getElementById('pm_monto').value);
+    if (!monto || monto <= 0) return toast('Ingresá un monto válido','err');
+    const metodo = document.getElementById('pm_metodo').value;
+    
+    currentPayments.push({
+      fecha: new Date().toISOString(),
+      monto: monto,
+      metodo: metodo
+    });
+    
+    renderPaymentsUI();
+    closePayModal();
+    toast('Pago listado. Recordá GUARDAR la orden.','ok');
+  }
+
+  // Save
+  async function saveRepair() {
+    const id = document.getElementById('f_id').value;
+    const cliente = document.getElementById('f_cliente').value.trim();
+    if (!cliente) return toast('El cliente es obligatorio','err');
+
+    const data = {
+      nro_orden: document.getElementById('f_orden').value.trim() || null,
+      cliente,
+      telefono: document.getElementById('f_telefono').value.trim() || null,
+      equipo: document.getElementById('f_equipo').value.trim() || null,
+      codigo_desbloqueo: document.getElementById('f_clave').value.trim() || null,
+      fallas: document.getElementById('f_fallas').value.trim() || null,
+      presupuesto: Number(document.getElementById('f_presupuesto').value) || 0,
+      estado: document.getElementById('f_estado').value,
+      historial_pagos: currentPayments
+    };
+
+    const btn = document.getElementById('btnSave');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+
+    if (id) {
+      // Update
+      const {error} = await db.from('reparaciones').update(data).eq('id', id);
+      btn.disabled = false; btn.textContent = 'GUARDAR ORDEN';
+      if (error) return toast(error.message, 'err');
+      toast('Orden actualizada', 'ok');
+    } else {
+      // Insert
+      const {error} = await db.from('reparaciones').insert([data]);
+      btn.disabled = false; btn.textContent = 'GUARDAR ORDEN';
+      if (error) return toast(error.message, 'err');
+      toast('Orden creada', 'ok');
+    }
+    
+    closePanel();
+    loadRepairs();
+  }
+
+</script>
+</body>
+</html>
