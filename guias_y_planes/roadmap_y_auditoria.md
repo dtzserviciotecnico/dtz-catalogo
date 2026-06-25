@@ -51,11 +51,14 @@ A continuación, el registro de las funcionalidades planificadas y su estado de 
 - [x] Tabla de auditoría (`audit_log`) inmutable para registrar todas las acciones realizadas en el panel de administración.
 - [x] Opción de exportación de registros a Excel.
 
-### 📱 Módulo de Taller y Reparaciones
+### 🛠️ Módulo de Taller y Reparaciones (v1.1.0)
 - [x] Desarrollo de un micro-sistema independiente (`reparaciones.html`) para la gestión de ingresos y servicio técnico.
 - [x] Arquitectura de base de datos aislada (`reparaciones`) con RLS estricto para protección de datos de clientes y credenciales de dispositivos.
 - [x] Implementación de historial de pagos parciales utilizando estructuras `JSONB`, minimizando latencia y operaciones relacionales (JOINs).
+- [x] **Flujo Rápido (Seña):** Capacidad de registrar señas/adelantos iniciales de forma directa al crear una orden.
 - [x] Estados de orden predefinidos (incluyendo cancelación) con cálculo en tiempo real del saldo deudor.
+- [x] **Checklist Extendido:** 8 parámetros de revisión preestablecidos para agilizar recepciones y evitar reclamos (Bandeja SIM, Cámaras, etc.).
+- [x] Generación nativa de comprobantes en PDF listos para impresión/WhatsApp, incluyendo textos legales y términos de servicio automatizados.
 - [x] UI/UX Mobile-First (Vanilla JS) para maximizar la agilidad operativa en mostradores.
 
 ---

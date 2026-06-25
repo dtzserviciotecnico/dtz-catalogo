@@ -70,10 +70,13 @@ En el panel de administración existen 3 niveles de acceso. Vos como dueño ten�
 4. Podés pausar (desactivar) una publicidad en cualquier momento sin borrarla. También podés cambiar el orden arrastrándolas. (Máximo 5 activas).
 
 ### Cómo usar el Módulo de Reparaciones (Taller)
-1. Desde el panel, hacé clic en el botón superior **"📱 Reparaciones"**.
-2. **Para ingresar un equipo:** Tocá el botón "+ Nueva". Llená los datos del cliente, la falla que reporta, la contraseña del teléfono y el Nro de Orden físico si usan talonario de papel. Guardá los cambios.
-3. **Para cambiar de estado:** Tocá la tarjeta del cliente y cambiá el estado (Ej: de "Ingresado" a "Reparado"). El color de la tarjeta cambiará automáticamente para que sea fácil identificarlo a simple vista.
-4. **Para registrar una seña o pago:** Entrá a la reparación, bajá hasta "Historial de Pagos" y tocá **"+ Pago"**. Elegí el monto y el método de pago. El sistema restará ese monto del Presupuesto Total y calculará automáticamente cuánto le falta abonar al cliente.
+1. Desde el panel, hacé clic en el botón superior **"🛠️ Reparaciones"**.
+2. **Para ingresar un equipo:** Tocá el botón "+ Nueva". Llená los datos del cliente (incluyendo DNI), marcá el estado del equipo en el **Checklist** y anotá la falla.
+3. **Generar el número de orden:** Ya no se ingresa a mano. El sistema generará el número oficial de forma automática y secuencial (Ej: #101) al guardar la orden.
+4. **Señas Inciales:** Podés ingresar el monto en "Seña Inicial ($)" y el método de pago directamente en el formulario al momento de recibir el equipo. El sistema lo restará automáticamente del presupuesto.
+5. **Comprobante (PDF):** Una vez guardada la orden, vas a tener un botón de "🖨️ PDF" en la parte inferior para generar y enviar/imprimir el remito con los términos y condiciones legales.
+6. **Para cambiar de estado:** Tocá la tarjeta del cliente y cambiá el estado (Ej: de "Ingresado" a "Reparado"). El color de la tarjeta cambiará automáticamente para que sea fácil identificarlo a simple vista.
+7. **Pagos posteriores:** Si el cliente viene a pagar un saldo o retirar, entrá a la reparación, bajá hasta "Historial de Pagos" y tocá **"+ Pago"**. El sistema recalculará el saldo a pagar.
 
 ---
 *Desarrollado en exclusiva para DTZ por [Tu Nombre / Lucatoons]*
