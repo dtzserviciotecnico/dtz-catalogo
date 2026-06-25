@@ -99,6 +99,25 @@
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;display:none;align-items:center;justify-content:center;padding:1rem}
     .modal-content{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:350px;padding:1.5rem}
     .modal-content h3{margin-bottom:1rem;color:#fff}
+    .modal-content h3{margin-bottom:1rem;color:#fff}
+
+    /* TICKET PDF (PRINT) */
+    @media print {
+      body * { visibility: hidden; }
+      #printLayout, #printLayout * { visibility: visible; }
+      #printLayout { position: absolute; left: 0; top: 0; width: 100%; color: #000; font-family: sans-serif; padding: 20px; }
+      .print-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+      .print-logo { font-size: 24px; font-weight: bold; }
+      .print-sucursales { font-size: 11px; text-align: right; line-height: 1.3; }
+      .print-title { font-size: 20px; font-weight: bold; text-align: center; margin-bottom: 20px; text-transform: uppercase; }
+      .print-row { margin-bottom: 8px; font-size: 14px; }
+      .print-row strong { width: 150px; display: inline-block; }
+      .print-box { border: 1px solid #000; padding: 10px; margin-top: 15px; min-height: 60px; font-size: 13px; }
+      .print-totals { margin-top: 20px; border: 1px solid #000; padding: 10px; width: 250px; float: right; }
+      .print-totals-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
+      .print-totals-row.bold { font-weight: bold; font-size: 16px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
+      .print-legales { margin-top: 50px; clear: both; font-size: 10px; text-align: justify; line-height: 1.4; border-top: 1px dashed #999; padding-top: 10px; }
+    }
   </style>
 </head>
 <body>
@@ -111,6 +130,7 @@
     </div>
     <div class="header-right">
       <span class="user-chip" id="userEmail">Cargando...</span>
+      <span style="font-size: 0.7rem; color: var(--muted); margin-left: 0.5rem; margin-right: 0.5rem;" title="Versión actual">v1.0.0</span>
     </div>
   </header>
 
@@ -136,8 +156,8 @@
       <input type="hidden" id="f_id">
       <div class="form-row">
         <div class="form-group">
-          <label>Nro Orden Físico</label>
-          <input type="text" id="f_orden" placeholder="Ej: A-101" autocomplete="off">
+          <label>Nro Orden (Automático)</label>
+          <input type="text" id="f_orden" value="Generado al guardar" disabled style="opacity:0.7">
         </div>
         <div class="form-group">
           <label>Estado</label>
@@ -151,9 +171,15 @@
           </select>
         </div>
       </div>
-      <div class="form-group">
-        <label>Cliente *</label>
-        <input type="text" id="f_cliente" placeholder="Nombre completo" autocomplete="off">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cliente *</label>
+          <input type="text" id="f_cliente" placeholder="Nombre completo" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>DNI</label>
+          <input type="text" id="f_dni" placeholder="Ej: 30123456" autocomplete="off">
+        </div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -170,8 +196,20 @@
         <input type="text" id="f_clave" placeholder="PIN, Patrón o 'Sin clave'" autocomplete="off">
       </div>
       <div class="form-group">
+        <label>Estado de Ingreso (Checklist)</label>
+        <div style="display:flex;gap:1rem;margin-top:0.3rem">
+          <label style="display:flex;align-items:center;gap:5px;font-size:0.85rem;color:var(--text);cursor:pointer"><input type="checkbox" id="f_chk_bateria"> Sin Batería</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:0.85rem;color:var(--text);cursor:pointer"><input type="checkbox" id="f_chk_rajado"> Rajado</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:0.85rem;color:var(--text);cursor:pointer"><input type="checkbox" id="f_chk_mojado"> Mojado</label>
+        </div>
+      </div>
+      <div class="form-group">
         <label>Fallas detectadas / Notas</label>
         <textarea id="f_fallas" placeholder="Describe el problema que reporta el cliente..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Trabajo Realizado (Uso Técnico)</label>
+        <textarea id="f_trabajo" placeholder="Detalle de lo que se le hizo al equipo para la entrega final..."></textarea>
       </div>
       <div class="form-group">
         <label>Presupuesto Total ($)</label>
@@ -193,6 +231,7 @@
       </div>
     </div>
     <div class="action-bar">
+      <button class="btn-sm" style="flex:0.5;background:var(--surface3);color:#fff" onclick="printComprobante()">🖨️ PDF</button>
       <button class="btn-save" id="btnSave" onclick="saveRepair()">GUARDAR ORDEN</button>
     </div>
   </div>
@@ -222,6 +261,42 @@
   </div>
 
   <div id="toast"></div>
+
+  <!-- PRINT LAYOUT (HIDDEN UNTIL PRINT) -->
+  <div id="printLayout" style="display:none">
+    <div class="print-header">
+      <div class="print-logo">DTZ Servicio Técnico</div>
+      <div class="print-sucursales">
+        <strong>San Juan 2984</strong>, Rosario - Tel: 341 660-8662<br>
+        <strong>San Juan 1912</strong>, Rosario - Tel: 341 328-1697
+      </div>
+    </div>
+    
+    <div class="print-title" id="p_titulo">ORDEN DE REPARACIÓN</div>
+    
+    <div class="print-row"><strong>Nro de Orden:</strong> <span id="p_orden"></span></div>
+    <div class="print-row"><strong>Fecha:</strong> <span id="p_fecha"></span></div>
+    <div class="print-row"><strong>Cliente:</strong> <span id="p_cliente"></span></div>
+    <div class="print-row"><strong>DNI:</strong> <span id="p_dni"></span></div>
+    <div class="print-row"><strong>Teléfono:</strong> <span id="p_tel"></span></div>
+    
+    <div class="print-box">
+      <div class="print-row" style="margin-bottom:10px"><strong>Equipo:</strong> <span id="p_equipo"></span> (Clave: <span id="p_clave"></span>)</div>
+      <div class="print-row"><strong>Estado al Ingresar:</strong> <span id="p_checks"></span></div>
+      <div class="print-row"><strong>Fallas / Notas:</strong> <span id="p_fallas"></span></div>
+      <div class="print-row" style="margin-top:10px; border-top:1px solid #ccc; padding-top:10px"><strong>Trabajo Realizado:</strong> <span id="p_trabajo"></span></div>
+    </div>
+    
+    <div class="print-totals">
+      <div class="print-totals-row"><span>Presupuesto:</span> <span id="p_pres">$0</span></div>
+      <div class="print-totals-row"><span>Seña (Abonado):</span> <span id="p_abonado">$0</span></div>
+      <div class="print-totals-row bold"><span>Saldo a pagar:</span> <span id="p_saldo">$0</span></div>
+    </div>
+    
+    <div class="print-legales">
+      <strong>Condiciones del Servicio:</strong> Sres. Clientes, pasados los 30 días de notificada la reparación, el equipo se considerará abandonado, facultando a DTZ Servicio Técnico a disponer del mismo según el Art. 2525 y 2526 del Código Civil y Comercial. La empresa no se responsabiliza por pérdidas de datos, tarjetas SIM o memorias SD no declaradas. Todo equipo ingresado mojado o apagado corre bajo exclusiva responsabilidad del cliente, no teniendo garantía sobre el encendido o funcionamiento general de la placa base posterior a la intervención. La garantía cubre única y exclusivamente la pieza reemplazada y por defectos de fábrica.
+    </div>
+  </div>
 
 <script>
   const db = window.supabase.createClient(DTZ_CONFIG.supabaseUrl, DTZ_CONFIG.supabaseAnonKey);
@@ -323,12 +398,17 @@
     document.getElementById('formPanel').classList.add('open');
     document.getElementById('f_id').value = '';
     document.getElementById('panelTitle').textContent = 'NUEVA REPARACIÓN';
-    document.getElementById('f_orden').value = '';
+    document.getElementById('f_orden').value = 'Generado al guardar';
     document.getElementById('f_cliente').value = '';
+    document.getElementById('f_dni').value = '';
     document.getElementById('f_telefono').value = '';
     document.getElementById('f_equipo').value = '';
     document.getElementById('f_clave').value = '';
+    document.getElementById('f_chk_bateria').checked = false;
+    document.getElementById('f_chk_rajado').checked = false;
+    document.getElementById('f_chk_mojado').checked = false;
     document.getElementById('f_fallas').value = '';
+    document.getElementById('f_trabajo').value = '';
     document.getElementById('f_presupuesto').value = '';
     document.getElementById('f_estado').value = 'Ingresado';
     
@@ -344,14 +424,19 @@
     const r = allRepairs.find(x => x.id === id);
     if (!r) return;
     openPanel();
-    document.getElementById('panelTitle').textContent = 'EDITAR ORDEN ' + (r.nro_orden || '#'+r.id);
+    document.getElementById('panelTitle').textContent = 'EDITAR ORDEN #' + r.id;
     document.getElementById('f_id').value = r.id;
-    document.getElementById('f_orden').value = r.nro_orden || '';
+    document.getElementById('f_orden').value = '#' + r.id;
     document.getElementById('f_cliente').value = r.cliente || '';
+    document.getElementById('f_dni').value = r.dni || '';
     document.getElementById('f_telefono').value = r.telefono || '';
     document.getElementById('f_equipo').value = r.equipo || '';
     document.getElementById('f_clave').value = r.codigo_desbloqueo || '';
+    document.getElementById('f_chk_bateria').checked = r.chk_sin_bateria || false;
+    document.getElementById('f_chk_rajado').checked = r.chk_rajado || false;
+    document.getElementById('f_chk_mojado').checked = r.chk_mojado || false;
     document.getElementById('f_fallas').value = r.fallas || '';
+    document.getElementById('f_trabajo').value = r.trabajo_realizado || '';
     document.getElementById('f_presupuesto').value = r.presupuesto || '';
     document.getElementById('f_estado').value = r.estado || 'Ingresado';
     
@@ -374,14 +459,24 @@
     if (currentPayments.length === 0) {
       list.innerHTML = '<div style="font-size:.8rem;color:var(--muted)">No hay pagos registrados.</div>';
     } else {
-      list.innerHTML = currentPayments.map(p => {
+      list.innerHTML = currentPayments.map((p, idx) => {
         const d = new Date(p.fecha).toLocaleDateString('es-AR');
         return `<div class="pay-item">
           <div><span style="text-transform:capitalize">${p.metodo}</span> <span class="pay-item-date">· ${d}</span></div>
-          <div class="pay-item-amount">$${Number(p.monto).toLocaleString('es-AR')}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="pay-item-amount">$${Number(p.monto).toLocaleString('es-AR')}</span>
+            <button onclick="deletePayment(${idx})" style="background:none;border:none;cursor:pointer;color:var(--danger)" title="Eliminar pago">🗑️</button>
+          </div>
         </div>`;
       }).join('');
     }
+  }
+
+  function deletePayment(idx) {
+    if(!confirm("¿Seguro que querés eliminar este pago?")) return;
+    currentPayments.splice(idx, 1);
+    renderPaymentsUI();
+    toast('Pago eliminado. Recordá GUARDAR.', 'warn');
   }
 
   function openPayModal() {
@@ -414,12 +509,16 @@
     if (!cliente) return toast('El cliente es obligatorio','err');
 
     const data = {
-      nro_orden: document.getElementById('f_orden').value.trim() || null,
       cliente,
+      dni: document.getElementById('f_dni').value.trim() || null,
       telefono: document.getElementById('f_telefono').value.trim() || null,
       equipo: document.getElementById('f_equipo').value.trim() || null,
       codigo_desbloqueo: document.getElementById('f_clave').value.trim() || null,
+      chk_sin_bateria: document.getElementById('f_chk_bateria').checked,
+      chk_rajado: document.getElementById('f_chk_rajado').checked,
+      chk_mojado: document.getElementById('f_chk_mojado').checked,
       fallas: document.getElementById('f_fallas').value.trim() || null,
+      trabajo_realizado: document.getElementById('f_trabajo').value.trim() || null,
       presupuesto: Number(document.getElementById('f_presupuesto').value) || 0,
       estado: document.getElementById('f_estado').value,
       historial_pagos: currentPayments
@@ -429,13 +528,11 @@
     btn.disabled = true; btn.textContent = 'Guardando...';
 
     if (id) {
-      // Update
       const {error} = await db.from('reparaciones').update(data).eq('id', id);
       btn.disabled = false; btn.textContent = 'GUARDAR ORDEN';
       if (error) return toast(error.message, 'err');
       toast('Orden actualizada', 'ok');
     } else {
-      // Insert
       const {error} = await db.from('reparaciones').insert([data]);
       btn.disabled = false; btn.textContent = 'GUARDAR ORDEN';
       if (error) return toast(error.message, 'err');
@@ -444,6 +541,35 @@
     
     closePanel();
     loadRepairs();
+  }
+
+  // Print PDF
+  function printComprobante() {
+    const id = document.getElementById('f_id').value;
+    if (!id) return toast('Guardá la orden antes de imprimir', 'warn');
+    
+    document.getElementById('p_orden').textContent = '#' + id;
+    document.getElementById('p_fecha').textContent = new Date().toLocaleDateString('es-AR');
+    document.getElementById('p_cliente').textContent = document.getElementById('f_cliente').value;
+    document.getElementById('p_dni').textContent = document.getElementById('f_dni').value || '-';
+    document.getElementById('p_tel').textContent = document.getElementById('f_telefono').value || '-';
+    document.getElementById('p_equipo').textContent = document.getElementById('f_equipo').value || '-';
+    document.getElementById('p_clave').textContent = document.getElementById('f_clave').value || '-';
+    
+    const checks = [];
+    if(document.getElementById('f_chk_bateria').checked) checks.push('Sin Batería');
+    if(document.getElementById('f_chk_rajado').checked) checks.push('Rajado');
+    if(document.getElementById('f_chk_mojado').checked) checks.push('Mojado');
+    document.getElementById('p_checks').textContent = checks.length ? checks.join(', ') : 'Ninguno';
+    
+    document.getElementById('p_fallas').textContent = document.getElementById('f_fallas').value || '-';
+    document.getElementById('p_trabajo').textContent = document.getElementById('f_trabajo').value || '-';
+    
+    document.getElementById('p_pres').textContent = document.getElementById('sumTotal').textContent;
+    document.getElementById('p_abonado').textContent = document.getElementById('sumPagado').textContent;
+    document.getElementById('p_saldo').textContent = document.getElementById('sumSaldo').textContent;
+    
+    window.print();
   }
 
 </script>

@@ -285,6 +285,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
     </nav>
     <div class="admin-right">
       <span class="user-chip" id="userEmail"></span>
+      <span style="font-size: 0.7rem; color: var(--muted); margin-left: 0.5rem; margin-right: 0.5rem;" title="Versión actual">v1.0.0</span>
       <button class="btn-logout" onclick="doLogout()">Salir</button>
     </div>
   </header>
@@ -932,31 +933,57 @@ function renderProdPagination() {
   pag.innerHTML=html;
 }
 
-// ── PRODUCT IMAGE MODAL ───────────────────────────────────
-function openImgModal(id,name,imgUrl) {
-  currentEditId=id; pendingImgFile=null;
-  document.getElementById('modalProductName').textContent=name;
-  document.getElementById('imgModal').classList.add('open');
-  document.getElementById('btnSaveImg').style.display='none';
-  document.getElementById('btnDeleteImg').style.display=imgUrl?'block':'none';
-  document.getElementById('img-file-input').value='';
-  const preview=document.getElementById('imgPreview');
-  preview.innerHTML=imgUrl?`<img src="${imgUrl}" alt="${escHtml(name)}">`:`<div class="no-img">🖼</div>`;
-}
-function closeImgModal() {
-  document.getElementById('imgModal').classList.remove('open');
-  currentEditId=null; pendingImgFile=null;
-}
-function handleImgFile(file) {
-  if(!file) return;
-  pendingImgFile=file;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    document.getElementById('imgPreview').innerHTML=`<img src="${e.target.result}" alt="preview">`;
-    document.getElementById('btnSaveImg').style.display='block';
-  };
-  reader.readAsDataURL(file);
-}
+  // ── COMPRESSION ───────────────────────────────────────────
+  async function compressImage(file, maxSize = 800) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          if (w > maxSize || h > maxSize) {
+            if (w > h) { h = Math.round((h * maxSize) / w); w = maxSize; }
+            else { w = Math.round((w * maxSize) / h); h = maxSize; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob((blob) => {
+            resolve(new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", { type: 'image/webp' }));
+          }, 'image/webp', 0.8);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ── PRODUCT IMAGE MODAL ───────────────────────────────────
+  function openImgModal(id,name,imgUrl) {
+    currentEditId=id; pendingImgFile=null;
+    document.getElementById('modalProductName').textContent=name;
+    document.getElementById('imgModal').classList.add('open');
+    document.getElementById('btnSaveImg').style.display='none';
+    document.getElementById('btnDeleteImg').style.display=imgUrl?'block':'none';
+    document.getElementById('img-file-input').value='';
+    const preview=document.getElementById('imgPreview');
+    preview.innerHTML=imgUrl?`<img src="${imgUrl}" alt="${escHtml(name)}">`:`<div class="no-img">🖼</div>`;
+  }
+  function closeImgModal() {
+    document.getElementById('imgModal').classList.remove('open');
+    currentEditId=null; pendingImgFile=null;
+  }
+  async function handleImgFile(file) {
+    if(!file) return;
+    pendingImgFile = await compressImage(file, 800); // Comprimir automáticamente a 800px max
+    const reader=new FileReader();
+    reader.onload=e=>{
+      document.getElementById('imgPreview').innerHTML=`<img src="${e.target.result}" alt="preview">`;
+      document.getElementById('btnSaveImg').style.display='block';
+    };
+    reader.readAsDataURL(pendingImgFile);
+  }
 async function saveImage() {
   if(!pendingImgFile||!currentEditId) return;
   const btn=document.getElementById('btnSaveImg');
@@ -991,9 +1018,41 @@ async function deleteImage() {
   closeImgModal();
   toast('Imagen eliminada','info');
 }
+async function bulkCompressImages() {
+  if (!confirm("Esto descargará y comprimirá todas las imágenes de productos que pesen más de 100KB en la base de datos. ¡Puede tardar unos minutos! ¿Estás seguro?")) return;
+  const btn = document.getElementById('btnBulkCompress');
+  btn.disabled = true;
+  
+  const toProcess = allProducts.filter(p => p.img_url);
+  let compressedCount = 0;
+  
+  for (let i = 0; i < toProcess.length; i++) {
+    const p = toProcess[i];
+    btn.textContent = `Procesando ${i+1} / ${toProcess.length}...`;
+    try {
+      const res = await fetch(p.img_url);
+      const blob = await res.blob();
+      if (blob.size < 100 * 1024) continue; // Si pesa menos de 100KB, la ignoramos.
+      
+      const file = new File([blob], "temp.jpg", { type: blob.type });
+      const comp = await compressImage(file, 800); // Comprime
+      
+      const parts = p.img_url.split('/');
+      const fileName = parts[parts.length - 1]; // Obtiene el nombre del archivo en Supabase
+      
+      // Sobrescribimos el archivo viejo
+      const {error} = await db.storage.from('imagenes-productos').upload(fileName, comp, {upsert:true, contentType:'image/webp'});
+      if (!error) compressedCount++;
+    } catch(e) { console.error("Error comprimiendo id: " + p.id, e); }
+  }
+  
+  btn.textContent = `¡Listo! ${compressedCount} fotos achicadas.`;
+  setTimeout(() => { btn.textContent = '🛠️ Comprimir Fotos Viejas'; btn.disabled = false; }, 5000);
+}
+
 const imgDrop=document.getElementById('imgDrop');
 imgDrop.addEventListener('dragover',e=>{e.preventDefault();imgDrop.classList.add('drag-over');});
-imgDrop.addEventListener('dragleave',()=>imgDrop.classList.remove('drag-over'));
+imgDrop.addEventListener('dragleave',()=>imgDrop.classList.remove('drag-over');});
 imgDrop.addEventListener('drop',e=>{e.preventDefault();imgDrop.classList.remove('drag-over');handleImgFile(e.dataTransfer.files[0]);});
 document.getElementById('imgModal').addEventListener('click',function(e){if(e.target===this)closeImgModal();});
 
