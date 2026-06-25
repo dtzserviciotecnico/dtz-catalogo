@@ -63,14 +63,7 @@ A continuación, el registro de las funcionalidades planificadas y su estado de 
 
 ---
 
-## 3. Optimizaciones de Presentación (Portafolio)
 
-Para mejorar la legibilidad y presentación del código frente a auditorías externas o revisiones técnicas (Tech Leads, Reclutadores):
-
-- [x] **Documentación Dividida:** Separación de la documentación en manuales de usuario (`manual_dtz.md`) y documentación puramente técnica (`documentacion_tecnica.md`).
-- [x] **Transparencia del Proceso:** Publicación de este `roadmap_y_auditoria.md` para demostrar capacidad de planificación, testeo y ejecución ordenada.
-- [x] **Branding en Código:** Inclusión de "Lucatoons" en el pie de página de la SPA pública.
-- [x] **Limpieza de Repositorio:** Eliminación del archivo temporal de aprendizaje Git de la historia remota.
 
 ---
 *Fin del documento de auditoría. Proyecto listo para escalar.*
