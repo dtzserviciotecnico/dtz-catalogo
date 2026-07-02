@@ -70,4 +70,4 @@ A continuación, el registro de las funcionalidades planificadas y su estado de 
 
 ---
 
-*Fin del documento de auditoría. Proyecto listo para escalar.*
+*Fin del documento de auditoría.*

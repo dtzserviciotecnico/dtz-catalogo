@@ -52,13 +52,3 @@ Para no consumir cuota de transferencia y almacenamiento en Supabase (evitando e
 1. **API Key Centralizada:** Definida en `config.js` (`imgbbApiKey`).
 2. **Función Helper:** `uploadToImgBB(file, customName)` en `admin.html`.
 3. **Compresión WebP en Cliente:** Antes del envío al endpoint `https://api.imgbb.com/1/upload`, el frontend comprime usando un canvas invisible en formato WebP (800px para catálogo, 600px para taller).
-
-## Estrategia de Infraestructura y SaaS (Lucatoons)
-*   **GitHub Pages vs. Vercel:** Para proyectos estáticos tipo catálogo/ERP de mostrador como DTZ, **GitHub Pages** es la arquitectura recomendada por su costo $0, portabilidad y simplicidad de *forking*.
-*   **Seguridad de API Keys en SPA:** Al estar en el frontend, las keys en `config.js` son públicas. Esto es un estándar aceptable para ImgBB y Supabase Anon Key porque no otorgando acceso administrativo a cuenta ni bases de datos.
-*   **Cuándo escalar a Vercel con Serverless Functions:** Para proyectos futuros que requieran cobros online (Stripe/MercadoPago), Inteligencia Artificial o emails transaccionales, se debe desplegar en **Vercel** usando la carpeta `/api` (Backend Serverless) guardando claves sensibles en Variables de Entorno secretas.
-
-## Flujo de Trabajo en Git y Ramas (Manual del Desarrollador)
-*   **Ramas de Tarea (`feat/` o `fix/`):** Se crean desde `main`, se trabajan aisladas, se combinan (`git merge` o PR) a `main` al finalizar y luego **se borran inmediatamente** (`git branch -d nombre-rama`) para mantener el repositorio limpio.
-*   **Ramas Estructurales (`main`, `staging`):** Nunca se borran. Representan entornos estables y de producción.
-*   **Ramas Descartadas:** Si una prueba no prospera, se borra directamente sin hacer merge para no ensuciar el código principal.
