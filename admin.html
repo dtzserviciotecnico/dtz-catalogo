@@ -861,7 +861,7 @@ async function loadProductsTable() {
     from+=pageSize;
   }
   // Cargar overrides
-  const {data:ovData} = await db.from('product_overrides').select('code,display_name,custom_price');
+  const {data:ovData} = await db.from('product_overrides').select('code,display_name,custom_price,oculto');
   allOverrides={};
   (ovData||[]).forEach(o=>{ allOverrides[o.code]=o; });
   hideLoading();
@@ -871,7 +871,7 @@ async function loadProductsTable() {
   // Adaptar encabezado según rol
   const canOverride = ['superadmin','admin'].includes(currentUserProfile?.role);
   document.getElementById('productsTableHead').innerHTML = canOverride
-    ? '<th>Imagen</th><th>Código</th><th>Nombre Odoo</th><th>Precio Odoo</th><th>Stock</th><th>Imagen</th><th>Override web</th>'
+    ? '<th>Imagen</th><th>Código</th><th>Nombre Odoo</th><th>Precio Odoo</th><th>Stock</th><th>Imagen</th><th>Acciones Web</th>'
     : '<th>Imagen</th><th>Código</th><th>Nombre</th><th>Precio</th><th>Stock</th><th>Imagen</th>';
   renderTable(1);
 }
@@ -902,15 +902,18 @@ function renderTable(page) {
   tbody.innerHTML=slice.map(p=>{
     const ov = allOverrides[p.code];
     const hasOv = !!(ov?.display_name || ov?.custom_price != null);
+    const isOculto = !!ov?.oculto;
     const ovBadge = hasOv ? '<span class="override-badge">✏ WEB</span>' : '';
+    const ocultoBadge = isOculto ? '<span class="badge-warn" style="background:#ff4444;color:#fff;margin-left:4px">🙈 OCULTO</span>' : '';
     const overrideBtn = canOverride
-      ? `<button class="btn-img ${hasOv?'has-img':''}" onclick="openOverrideModal('${escHtml(p.code)}','${escHtml(p.name)}',${p.price})" title="Editar nombre/precio para el catálogo web">${hasOv?'✏ Editado':'✏ Override'}</button>`
+      ? `<button class="btn-img ${hasOv?'has-img':''}" onclick="openOverrideModal('${escHtml(p.code)}','${escHtml(p.name)}',${p.price})" title="Editar nombre/precio para el catálogo web">${hasOv?'✏ Editado':'✏ Override'}</button>
+         <button class="btn-img" style="background:${isOculto?'#22c55e':'#ef4444'};color:#fff;margin-top:2px" onclick="toggleOcultoProduct('${escHtml(p.code)}','${escHtml(p.name)}')" title="${isOculto?'Mostrar en catálogo':'Ocultar del catálogo'}">${isOculto?'👁️ Mostrar':'🙈 Ocultar'}</button>`
       : '';
     return `
-    <tr>
+    <tr style="${isOculto?'opacity:0.6;background:#ffe5e5':''}">
       <td>${p.img_url?`<img class="thumb" src="${p.img_url}" alt="${escHtml(p.name)}">`:`<div class="thumb-placeholder" onclick="openImgModal('${p.id}','${escHtml(p.name)}','${p.img_url||''}')" >🖼</div>`}</td>
       <td><div class="code-badge">[${p.code}]</div>${!p.has_valid_code?'<div class="badge-warn">⚠ Sin *</div>':''}</td>
-      <td style="max-width:220px">${escHtml(p.name)}${ovBadge}</td>
+      <td style="max-width:220px">${escHtml(p.name)}${ovBadge}${ocultoBadge}</td>
       <td class="${p.price>0?'price-cell':'consultar-cell'}">${p.price>0?'$'+p.price.toLocaleString('es-AR'):'Consultar'}</td>
       <td class="${p.stock>0?'stock-ok':'stock-zero'}">${p.stock>0?p.stock:'–'}</td>
       <td><button class="btn-img ${p.img_url?'has-img':''}" onclick="openImgModal('${p.id}','${escHtml(p.name)}','${p.img_url||''}')">${p.img_url?'🖼 Cambiar':'+ Imagen'}</button></td>
@@ -959,6 +962,20 @@ function renderProdPagination() {
     });
   }
 
+  async function uploadToImgBB(file, customName) {
+    if (!DTZ_CONFIG.imgbbApiKey) throw new Error("Falta imgbbApiKey en config.js");
+    const formData = new FormData();
+    formData.append('image', file);
+    if (customName) formData.append('name', customName);
+    const resp = await fetch(`https://api.imgbb.com/1/upload?key=${DTZ_CONFIG.imgbbApiKey}`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error?.message || "Error al subir a ImgBB");
+    return data.data.url;
+  }
+
   // ── PRODUCT IMAGE MODAL ───────────────────────────────────
   function openImgModal(id,name,imgUrl) {
     currentEditId=id; pendingImgFile=null;
@@ -987,22 +1004,23 @@ function renderProdPagination() {
 async function saveImage() {
   if(!pendingImgFile||!currentEditId) return;
   const btn=document.getElementById('btnSaveImg');
-  btn.disabled=true; btn.textContent='Subiendo...';
-  const ext=pendingImgFile.name.split('.').pop().toLowerCase();
-  const fileName=`producto-${currentEditId}-${Date.now()}.${ext}`;
-  const {error:uploadErr}=await db.storage.from('imagenes-productos').upload(fileName,pendingImgFile,{upsert:true,contentType:pendingImgFile.type});
-  if(uploadErr){toast('Error subiendo: '+uploadErr.message,'err');btn.disabled=false;btn.textContent='💾 Guardar imagen';return;}
-  const {data:urlData}=db.storage.from('imagenes-productos').getPublicUrl(fileName);
-  const {error:updateErr}=await db.from('productos').update({img_url:urlData.publicUrl}).eq('id',currentEditId);
-  if(updateErr){toast('Error guardando URL','err');}
-  else {
-    toast('✔ Imagen guardada','ok');
-    const p=allProducts.find(p=>String(p.id)===String(currentEditId));
-    logAction('IMAGEN_SUBIR', p?.code, p?.name, `Imagen actualizada`);
-    if(p) p.img_url=urlData.publicUrl;
-    filteredProducts=[...allProducts];
-    renderTable(currentProdPage);
-    closeImgModal();
+  btn.disabled=true; btn.textContent='Subiendo a ImgBB...';
+  try {
+    const fileName = `prod-${currentEditId}-${Date.now()}`;
+    const imgUrl = await uploadToImgBB(pendingImgFile, fileName);
+    const {error:updateErr}=await db.from('productos').update({img_url: imgUrl}).eq('id',currentEditId);
+    if(updateErr){toast('Error guardando URL en DB','err');}
+    else {
+      toast('✔ Imagen guardada en ImgBB','ok');
+      const p=allProducts.find(p=>String(p.id)===String(currentEditId));
+      logAction('IMAGEN_SUBIR', p?.code, p?.name, `Imagen subida a ImgBB`);
+      if(p) p.img_url=imgUrl;
+      filteredProducts=[...allProducts];
+      renderTable(currentProdPage);
+      closeImgModal();
+    }
+  } catch(e) {
+    toast('Error subiendo: ' + e.message, 'err');
   }
   btn.disabled=false; btn.textContent='💾 Guardar imagen';
 }
@@ -1019,35 +1037,34 @@ async function deleteImage() {
   toast('Imagen eliminada','info');
 }
 async function bulkCompressImages() {
-  if (!confirm("Esto descargará y comprimirá todas las imágenes de productos que pesen más de 100KB en la base de datos. ¡Puede tardar unos minutos! ¿Estás seguro?")) return;
+  if (!confirm("Esto descargará y comprimirá todas las imágenes de productos y las migrará a los servidores gratuitos de ImgBB. ¿Estás seguro?")) return;
   const btn = document.getElementById('btnBulkCompress');
   btn.disabled = true;
   
-  const toProcess = allProducts.filter(p => p.img_url);
+  const toProcess = allProducts.filter(p => p.img_url && !p.img_url.includes('i.ibb.co'));
   let compressedCount = 0;
   
   for (let i = 0; i < toProcess.length; i++) {
     const p = toProcess[i];
-    btn.textContent = `Procesando ${i+1} / ${toProcess.length}...`;
+    btn.textContent = `Migrando ${i+1} / ${toProcess.length}...`;
     try {
       const res = await fetch(p.img_url);
       const blob = await res.blob();
-      if (blob.size < 100 * 1024) continue; // Si pesa menos de 100KB, la ignoramos.
-      
       const file = new File([blob], "temp.jpg", { type: blob.type });
-      const comp = await compressImage(file, 800); // Comprime
-      
-      const parts = p.img_url.split('/');
-      const fileName = parts[parts.length - 1]; // Obtiene el nombre del archivo en Supabase
-      
-      // Sobrescribimos el archivo viejo
-      const {error} = await db.storage.from('imagenes-productos').upload(fileName, comp, {upsert:true, contentType:'image/webp'});
-      if (!error) compressedCount++;
-    } catch(e) { console.error("Error comprimiendo id: " + p.id, e); }
+      const comp = await compressImage(file, 800);
+      const fileName = `prod-migrated-${p.id}-${Date.now()}`;
+      const newUrl = await uploadToImgBB(comp, fileName);
+      const {error} = await db.from('productos').update({img_url: newUrl}).eq('id', p.id);
+      if (!error) {
+        p.img_url = newUrl;
+        compressedCount++;
+      }
+    } catch(e) { console.error("Error migrando id: " + p.id, e); }
   }
   
-  btn.textContent = `¡Listo! ${compressedCount} fotos achicadas.`;
-  setTimeout(() => { btn.textContent = '🛠️ Comprimir Fotos Viejas'; btn.disabled = false; }, 5000);
+  btn.textContent = `¡Listo! ${compressedCount} fotos migradas a ImgBB.`;
+  renderTable(currentProdPage);
+  setTimeout(() => { btn.textContent = '🛠️ Comprimir y Migrar Fotos Viejas'; btn.disabled = false; }, 5000);
 }
 
 const imgDrop=document.getElementById('imgDrop');
@@ -1100,22 +1117,21 @@ function handleLogoFile(file) {
 async function saveLogo() {
   if(!pendingLogoFile) return;
   const btn=document.getElementById('btnSaveLogo');
-  btn.disabled=true; btn.textContent='Subiendo...';
-  const ext=pendingLogoFile.name.split('.').pop().toLowerCase();
-  const fileName=`logo-dtz-${Date.now()}.${ext}`;
-  const {error:upErr}=await db.storage.from('imagenes-productos').upload(fileName,pendingLogoFile,{upsert:true,contentType:pendingLogoFile.type});
-  if(upErr){toast('Error subiendo logo: '+upErr.message,'err');btn.disabled=false;btn.textContent='💾 Guardar logo';return;}
-  const {data:urlData}=db.storage.from('imagenes-productos').getPublicUrl(fileName);
-  const logoUrl=urlData.publicUrl;
-  // Upsert in configuracion table
-  await db.from('configuracion').upsert({clave:'logo_url',valor:logoUrl},{onConflict:'clave'});
-  applyLogoToAdmin(logoUrl);
-  document.getElementById('btnDeleteLogo').style.display='block';
-  document.getElementById('btnSaveLogo').style.display='none';
-  pendingLogoFile=null;
-  document.getElementById('logo-file-input').value='';
-  logAction('LOGO_CAMBIAR', null, null, 'Logo del catálogo actualizado');
-  toast('✔ Logo actualizado. Ya se ve en el catálogo.','ok');
+  btn.disabled=true; btn.textContent='Subiendo a ImgBB...';
+  try {
+    const fileName=`logo-dtz-${Date.now()}`;
+    const logoUrl = await uploadToImgBB(pendingLogoFile, fileName);
+    await db.from('configuracion').upsert({clave:'logo_url',valor:logoUrl},{onConflict:'clave'});
+    applyLogoToAdmin(logoUrl);
+    document.getElementById('btnDeleteLogo').style.display='block';
+    document.getElementById('btnSaveLogo').style.display='none';
+    pendingLogoFile=null;
+    document.getElementById('logo-file-input').value='';
+    logAction('LOGO_CAMBIAR', null, null, 'Logo subido a ImgBB');
+    toast('✔ Logo actualizado en ImgBB. Ya se ve en el catálogo.','ok');
+  } catch(e) {
+    toast('Error subiendo logo: ' + e.message, 'err');
+  }
   btn.disabled=false; btn.textContent='💾 Guardar logo';
 }
 async function deleteLogo() {
@@ -1371,17 +1387,14 @@ async function openOverrideModal(code, odooName, odooPrice) {
   }
   document.getElementById('overrideModal').classList.add('open');
 }
-function closeOverrideModal() {
-  document.getElementById('overrideModal').classList.remove('open');
-  currentOverrideCode = null;
-}
 async function saveOverride() {
   if (!currentOverrideCode) return;
   const displayName  = document.getElementById('overrideNameInput').value.trim() || null;
   const priceVal     = document.getElementById('overridePriceInput').value;
   const custom_price = priceVal !== '' ? parseFloat(priceVal) : null;
+  const existingOculto = allOverrides[currentOverrideCode]?.oculto || false;
   const {error} = await db.from('product_overrides').upsert(
-    { code:currentOverrideCode, display_name:displayName, custom_price, updated_by:currentUser?.email, updated_at:new Date().toISOString() },
+    { code:currentOverrideCode, display_name:displayName, custom_price, oculto: existingOculto, updated_by:currentUser?.email, updated_at:new Date().toISOString() },
     { onConflict:'code' }
   );
   if (error) { toast('Error: '+error.message,'err'); return; }
@@ -1389,13 +1402,17 @@ async function saveOverride() {
   if (displayName) parts.push(`Nombre web: "${displayName}"`);
   if (custom_price !== null) parts.push(`Precio web: $${custom_price}`);
   logAction('OVERRIDE_GUARDAR', currentOverrideCode, null, parts.join(' | ') || 'Sin cambios');
-  if (displayName || custom_price !== null)
-    allOverrides[currentOverrideCode] = { code:currentOverrideCode, display_name:displayName, custom_price };
+  if (displayName || custom_price !== null || existingOculto)
+    allOverrides[currentOverrideCode] = { code:currentOverrideCode, display_name:displayName, custom_price, oculto: existingOculto };
   else
     delete allOverrides[currentOverrideCode];
   toast('✔ Override guardado','ok');
   closeOverrideModal();
   renderTable(currentProdPage);
+}
+function closeOverrideModal() {
+  document.getElementById('overrideModal').classList.remove('open');
+  currentOverrideCode = null;
 }
 async function clearOverride() {
   if (!currentOverrideCode) return;
@@ -1405,6 +1422,30 @@ async function clearOverride() {
   delete allOverrides[currentOverrideCode];
   toast('Override eliminado — vuelve a mostrar datos de Odoo','info');
   closeOverrideModal();
+  renderTable(currentProdPage);
+}
+async function toggleOcultoProduct(code, name) {
+  const ov = allOverrides[code] || { code };
+  const newOculto = !ov.oculto;
+  const {error} = await db.from('product_overrides').upsert(
+    { 
+      code: code, 
+      display_name: ov.display_name || null, 
+      custom_price: ov.custom_price !== undefined ? ov.custom_price : null, 
+      oculto: newOculto, 
+      updated_by: currentUser?.email, 
+      updated_at: new Date().toISOString() 
+    },
+    { onConflict: 'code' }
+  );
+  if (error) { toast('Error al cambiar visibilidad: ' + error.message, 'err'); return; }
+  ov.oculto = newOculto;
+  if (ov.display_name || ov.custom_price != null || ov.oculto)
+    allOverrides[code] = ov;
+  else
+    delete allOverrides[code];
+  logAction('OVERRIDE_OCULTAR', code, name, newOculto ? 'Producto ocultado en web' : 'Producto visible en web');
+  toast(newOculto ? '🙈 Producto ocultado de la web pública' : '👁️ Producto visible en la web', 'ok');
   renderTable(currentProdPage);
 }
 document.getElementById('overrideModal').addEventListener('click',function(e){if(e.target===this)closeOverrideModal();});
@@ -1451,37 +1492,39 @@ function handleBannerFile(file) {
   };
   reader.readAsDataURL(file);
 }
+
 async function uploadBanner() {
   if (!pendingBannerFile) return;
   const btn = document.getElementById('btnUploadBanner');
-  btn.disabled = true; btn.textContent = 'Subiendo...';
-  const ext  = pendingBannerFile.name.split('.').pop().toLowerCase();
-  const name = `banner-${Date.now()}.${ext}`;
-  const {error: upErr} = await db.storage.from('imagenes-productos').upload(name, pendingBannerFile, {upsert:true, contentType:pendingBannerFile.type});
-  if (upErr) { toast('Error subiendo: '+upErr.message,'err'); btn.disabled=false; btn.textContent='⬆ Subir banner'; return; }
-  const {data:urlData} = db.storage.from('imagenes-productos').getPublicUrl(name);
-  const {data: existing} = await db.from('banners').select('orden').order('orden',{ascending:false}).limit(1);
-  const nextOrden = (existing?.[0]?.orden ?? -1) + 1;
-  const {error: insErr} = await db.from('banners').insert({
-    img_url:    urlData.publicUrl,
-    titulo:     document.getElementById('bannerTitulo').value.trim()    || null,
-    subtitulo:  document.getElementById('bannerSubtitulo').value.trim() || null,
-    link_url:   document.getElementById('bannerLink').value.trim()      || null,
-    orden:      nextOrden,
-    activo:     true
-  });
+  btn.disabled = true; btn.textContent = 'Subiendo a ImgBB...';
+  try {
+    const name = `banner-${Date.now()}`;
+    const imgUrl = await uploadToImgBB(pendingBannerFile, name);
+    const {data: existing} = await db.from('banners').select('orden').order('orden',{ascending:false}).limit(1);
+    const nextOrden = (existing?.[0]?.orden ?? -1) + 1;
+    const {error: insErr} = await db.from('banners').insert({
+      img_url:    imgUrl,
+      titulo:     document.getElementById('bannerTitulo').value.trim()    || null,
+      subtitulo:  document.getElementById('bannerSubtitulo').value.trim() || null,
+      link_url:   document.getElementById('bannerLink').value.trim()      || null,
+      orden:      nextOrden,
+      activo:     true
+    });
+    if (insErr) { toast('Error guardando banner: '+insErr.message,'err'); btn.disabled=false; btn.textContent='⬆ Subir banner'; return; }
+    const bTitulo = document.getElementById('bannerTitulo').value.trim();
+    logAction('BANNER_SUBIR', null, bTitulo||'Sin título', 'Banner subido a ImgBB');
+    toast('✔ Banner subido a ImgBB','ok');
+    pendingBannerFile = null;
+    document.getElementById('bannerPreviewWrap').style.display = 'none';
+    document.getElementById('bannerTitulo').value    = '';
+    document.getElementById('bannerSubtitulo').value = '';
+    document.getElementById('bannerLink').value      = '';
+    document.getElementById('banner-file-input').value = '';
+    loadBannersTab();
+  } catch(e) {
+    toast('Error subiendo: ' + e.message, 'err');
+  }
   btn.disabled=false; btn.textContent='⬆ Subir banner';
-  if (insErr) { toast('Error guardando banner: '+insErr.message,'err'); return; }
-  const bTitulo = document.getElementById('bannerTitulo').value.trim();
-  logAction('BANNER_SUBIR', null, bTitulo||'Sin título', 'Banner subido al carousel');
-  toast('✔ Banner subido','ok');
-  pendingBannerFile = null;
-  document.getElementById('bannerPreviewWrap').style.display = 'none';
-  document.getElementById('bannerTitulo').value    = '';
-  document.getElementById('bannerSubtitulo').value = '';
-  document.getElementById('bannerLink').value      = '';
-  document.getElementById('banner-file-input').value = '';
-  loadBannersTab();
 }
 async function loadBannersTab() {
   const wrap = document.getElementById('bannersTableWrap');

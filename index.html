@@ -479,8 +479,8 @@ async function loadProducts() {
       from+=pageSize;
     }
     allProducts=allData;
-    // Overrides (nombre/precio personalizado)
-    const {data:ovData} = await db.from('product_overrides').select('code,display_name,custom_price');
+    // Overrides (nombre/precio personalizado/oculto)
+    const {data:ovData} = await db.from('product_overrides').select('code,display_name,custom_price,oculto');
     allOverrides={};
     (ovData||[]).forEach(o=>{ allOverrides[o.code]=o; });
     // Promociones activas
@@ -502,6 +502,8 @@ function applyFiltersAndRender() {
   const q = document.getElementById('searchInput').value.toLowerCase().trim();
   const sort = document.getElementById('sortSelect').value;
   filtered = allProducts.filter(p => {
+    const ov = allOverrides[p.code];
+    if (ov && ov.oculto) return false;
     if (q && !p.name.toLowerCase().includes(q) && !String(p.code).toLowerCase().includes(q)) return false;
     if (currentFilter==='stock') return p.stock>0;
     if (currentFilter==='nostock') return p.stock===0;

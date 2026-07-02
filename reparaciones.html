@@ -113,10 +113,12 @@
       .print-row { margin-bottom: 8px; font-size: 14px; }
       .print-row strong { width: 150px; display: inline-block; }
       .print-box { border: 1px solid #000; padding: 10px; margin-top: 15px; min-height: 60px; font-size: 13px; break-inside: avoid; }
-      .print-totals { margin-top: 20px; border: 1px solid #000; padding: 10px; width: 250px; float: right; page-break-inside: avoid; }
-      .print-totals-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
-      .print-totals-row.bold { font-weight: bold; font-size: 16px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
-      .print-legales { margin-top: 50px; clear: both; font-size: 10px; text-align: justify; line-height: 1.4; border-top: 1px dashed #999; padding-top: 10px; }
+      .print-totals { margin-top: 15px; border: 1px solid #000; padding: 8px; width: 250px; float: right; page-break-inside: avoid; }
+      .print-totals-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+      .print-totals-row.bold { font-weight: bold; font-size: 15px; border-top: 1px solid #000; padding-top: 4px; margin-top: 4px; }
+      .print-legales { margin-top: 20px; clear: both; font-size: 9px; text-align: justify; line-height: 1.3; border-top: 1px dashed #999; padding-top: 8px; page-break-inside: avoid; }
+      .print-fotos { margin-top: 15px; clear: both; page-break-inside: avoid; text-align: center; }
+      .print-fotos img { max-height: 110px; max-width: 30%; margin: 0 5px; border: 1px solid #ccc; object-fit: contain; }
     }
   </style>
 </head>
@@ -130,14 +132,17 @@
     </div>
     <div class="header-right">
       <span class="user-chip" id="userEmail">Cargando...</span>
-      <span style="font-size: 0.7rem; color: var(--muted); margin-left: 0.5rem; margin-right: 0.5rem;" title="Versión actual">v1.1.0</span>
+      <span style="font-size: 0.7rem; color: var(--muted); margin-left: 0.5rem; margin-right: 0.5rem;" title="Versión actual">v1.2.0</span>
     </div>
   </header>
 
   <div class="container">
     <div class="toolbar">
       <input type="text" id="searchInput" class="search-input" placeholder="Buscar cliente o nro orden..." autocomplete="off">
-      <button class="btn-primary" onclick="openPanel()">+ Nueva</button>
+      <div style="display:flex;gap:0.5rem">
+        <button class="btn-sm" style="background:var(--surface2);color:#fff;padding:0.6rem 1rem;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-weight:600" onclick="openAuditTallerModal()">📜 Auditoría</button>
+        <button class="btn-primary" onclick="openPanel()">+ Nueva</button>
+      </div>
     </div>
 
     <div class="rep-list" id="repList">
@@ -236,6 +241,16 @@
         </div>
       </div>
 
+      <!-- PHOTOS (MAX 3) -->
+      <div class="form-group" style="margin-top:1.5rem;background:var(--surface2);padding:1rem;border-radius:8px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+          <label style="margin:0;color:#fff;font-weight:600">📸 Fotos del equipo (Máx. 3)</label>
+          <button class="btn-sm" type="button" onclick="document.getElementById('rep-file-input').click()" id="btnAddRepairPhoto" style="background:var(--primary);color:#000;font-weight:600">+ Subir Foto</button>
+        </div>
+        <input type="file" id="rep-file-input" accept="image/*" style="display:none" onchange="handleRepairPhotoUpload(this.files[0])">
+        <div id="repairPhotosList" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:0.5rem"></div>
+      </div>
+
       <!-- PAYMENTS -->
       <div class="pay-section" id="paySection" style="display:none">
         <div class="pay-header">
@@ -251,6 +266,7 @@
       </div>
     </div>
     <div class="action-bar">
+      <button class="btn-sm" id="btnDeleteRepair" style="flex:0.4;background:var(--danger);color:#fff;display:none" onclick="deleteRepair()">🗑️ Eliminar</button>
       <button class="btn-sm" style="flex:0.5;background:var(--surface3);color:#fff" onclick="printComprobante()">🖨️ PDF</button>
       <button class="btn-save" id="btnSave" onclick="saveRepair()">GUARDAR ORDEN</button>
     </div>
@@ -277,6 +293,17 @@
         <button class="btn-sm" style="flex:1" onclick="closePayModal()">Cancelar</button>
         <button class="btn-primary" style="flex:1;padding:.5rem" onclick="addPayment()">Confirmar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- AUDIT TALLER MODAL -->
+  <div class="modal-overlay" id="auditTallerModal">
+    <div class="modal-content" style="max-width:650px;max-height:80vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h3 style="margin:0">📜 Auditoría de Taller</h3>
+        <button class="btn-sm" onclick="closeAuditTallerModal()">✕</button>
+      </div>
+      <div id="auditTallerList" style="font-size:0.85rem;color:var(--text)">Cargando...</div>
     </div>
   </div>
 
@@ -307,6 +334,11 @@
       <div class="print-row" style="margin-top:10px; border-top:1px solid #ccc; padding-top:10px"><strong>Trabajo Realizado:</strong> <span id="p_trabajo"></span></div>
     </div>
     
+    <div id="p_fotos_container" class="print-fotos" style="display:none">
+      <div style="font-weight:bold; font-size:12px; margin-bottom:5px; text-align:left">Fotos del equipo:</div>
+      <div id="p_fotos_list" style="display:flex; justify-content:center; gap:10px"></div>
+    </div>
+
     <div class="print-totals">
       <div class="print-totals-row"><span>Presupuesto:</span> <span id="p_pres">$0</span></div>
       <div class="print-totals-row"><span>Seña (Abonado):</span> <span id="p_abonado">$0</span></div>
@@ -321,8 +353,10 @@
 <script>
   const db = window.supabase.createClient(DTZ_CONFIG.supabaseUrl, DTZ_CONFIG.supabaseAnonKey);
   let currentUser = null;
+  let currentUserRole = 'staff';
   let allRepairs = [];
   let currentPayments = [];
+  let currentRepairPhotos = [];
 
   // Init
   window.onload = async () => {
@@ -333,6 +367,12 @@
     }
     currentUser = session.user;
     
+    // Cargar rol y nombre del usuario
+    try {
+      const {data: prof} = await db.from('profiles').select('role').eq('id', currentUser.id).single();
+      if (prof?.role) currentUserRole = prof.role;
+    } catch(e) {}
+
     // Cargar nombre si hay caché (como hicimos en admin)
     const cachedName = localStorage.getItem('dtz_user_name_' + currentUser.id);
     document.getElementById('userEmail').textContent = cachedName || currentUser.email;
@@ -440,7 +480,10 @@
     document.getElementById('f_estado').value = 'Ingresado';
     
     currentPayments = [];
+    currentRepairPhotos = [];
     document.getElementById('paySection').style.display = 'none';
+    document.getElementById('btnDeleteRepair').style.display = 'none';
+    renderRepairPhotosUI();
   }
 
   function closePanel() {
@@ -474,8 +517,11 @@
     document.getElementById('f_estado').value = r.estado || 'Ingresado';
     
     currentPayments = r.historial_pagos || [];
+    currentRepairPhotos = r.fotos || [];
     document.getElementById('paySection').style.display = 'block';
+    document.getElementById('btnDeleteRepair').style.display = ['admin', 'superadmin'].includes(currentUserRole) ? 'block' : 'none';
     renderPaymentsUI();
+    renderRepairPhotosUI();
   }
 
   // Payments
@@ -530,9 +576,161 @@
       metodo: metodo
     });
     
+    logAudit('PAGO_AGREGADO', document.getElementById('f_id').value || 'Nueva', `Monto: $${monto} (${metodo})`);
     renderPaymentsUI();
     closePayModal();
     toast('Pago listado. Recordá GUARDAR la orden.','ok');
+  }
+
+  // ── AUDITORÍA TALLER ──────────────────────────────────────
+  async function logAudit(actionType, entityId, detalle) {
+    try {
+      const email = currentUser?.email || 'anonimo@dtz.com';
+      await db.from('audit_log').insert({
+        user_email: email,
+        user_name: email.split('@')[0],
+        user_role: 'taller',
+        action_type: actionType,
+        entity_code: String(entityId || ''),
+        entity_name: 'Orden Reparación',
+        detalle: detalle || null
+      });
+    } catch(e) {}
+  }
+
+  async function openAuditTallerModal() {
+    document.getElementById('auditTallerModal').style.display = 'flex';
+    const listEl = document.getElementById('auditTallerList');
+    listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1rem">Cargando historial de taller...</div>';
+    
+    const {data, error} = await db.from('audit_log')
+      .select('*')
+      .or('user_role.eq.taller,action_type.ilike.%REPARACION%,action_type.ilike.%PAGO%')
+      .order('created_at', {ascending: false})
+      .limit(200);
+      
+    if (error || !data || !data.length) {
+      listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1rem">No hay movimientos registrados en taller.</div>';
+      return;
+    }
+
+    listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);text-align:left;color:var(--muted)">
+          <th style="padding:6px">Fecha</th>
+          <th style="padding:6px">Usuario</th>
+          <th style="padding:6px">Acción</th>
+          <th style="padding:6px">Orden #</th>
+          <th style="padding:6px">Detalle</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(item => {
+          const dt = new Date(item.created_at).toLocaleString('es-AR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+          const badgeColor = item.action_type.includes('ELIMINAR') ? '#ef4444' : item.action_type.includes('CREAR') ? '#22c55e' : '#3b82f6';
+          return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+            <td style="padding:6px;color:var(--muted)">${dt}</td>
+            <td style="padding:6px">${item.user_name}</td>
+            <td style="padding:6px"><span style="background:${badgeColor};color:#fff;padding:2px 6px;border-radius:4px;font-size:0.7rem;font-weight:600">${item.action_type}</span></td>
+            <td style="padding:6px;font-weight:600">#${item.entity_code || '-'}</td>
+            <td style="padding:6px">${item.detalle || '-'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  function closeAuditTallerModal() {
+    document.getElementById('auditTallerModal').style.display = 'none';
+  }
+
+  // ── FOTOS DEL EQUIPO (MAX 3 - IMGBB) ──────────────────────
+  function compressImage(file, maxPx) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          if (w > maxPx || h > maxPx) {
+            if (w > h) { h = Math.round((h * maxPx) / w); w = maxPx; }
+            else { w = Math.round((w * maxPx) / h); h = maxPx; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob((blob) => {
+            resolve(new File([blob], "foto.webp", { type: 'image/webp' }));
+          }, 'image/webp', 0.8);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadToImgBB(file, customName) {
+    if (!DTZ_CONFIG.imgbbApiKey) throw new Error("Falta imgbbApiKey en config.js");
+    const formData = new FormData();
+    formData.append('image', file);
+    if (customName) formData.append('name', customName);
+    const resp = await fetch(`https://api.imgbb.com/1/upload?key=${DTZ_CONFIG.imgbbApiKey}`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error?.message || "Error al subir a ImgBB");
+    return data.data.url;
+  }
+
+  async function handleRepairPhotoUpload(file) {
+    if (!file) return;
+    if (currentRepairPhotos.length >= 3) {
+      toast('Máximo 3 fotos por orden','warn');
+      return;
+    }
+    const btn = document.getElementById('btnAddRepairPhoto');
+    const oldText = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Subiendo...';
+    try {
+      const comp = await compressImage(file, 600);
+      const fileName = `taller-${Date.now()}`;
+      const url = await uploadToImgBB(comp, fileName);
+      currentRepairPhotos.push(url);
+      renderRepairPhotosUI();
+      toast('✔ Foto subida a ImgBB','ok');
+      logAudit('IMAGEN_SUBIR_TALLER', document.getElementById('f_id').value || 'Nueva', 'Foto adjuntada a orden de reparación');
+    } catch(e) {
+      toast('Error al subir foto: ' + e.message, 'err');
+    }
+    btn.disabled = false; btn.textContent = oldText;
+    document.getElementById('rep-file-input').value = '';
+  }
+
+  function removeRepairPhoto(idx) {
+    currentRepairPhotos.splice(idx, 1);
+    renderRepairPhotosUI();
+  }
+
+  function renderRepairPhotosUI() {
+    const wrap = document.getElementById('repairPhotosList');
+    const btn = document.getElementById('btnAddRepairPhoto');
+    if (currentRepairPhotos.length >= 3) {
+      btn.style.display = 'none';
+    } else {
+      btn.style.display = 'inline-block';
+    }
+    if (!currentRepairPhotos.length) {
+      wrap.innerHTML = '<span style="color:var(--muted);font-size:0.8rem">Sin fotos adjuntas</span>';
+      return;
+    }
+    wrap.innerHTML = currentRepairPhotos.map((url, i) => `
+      <div style="position:relative;display:inline-block">
+        <img src="${url}" style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">
+        <button type="button" onclick="removeRepairPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:10px;cursor:pointer;font-weight:bold">✕</button>
+      </div>
+    `).join('');
   }
 
   // Save
@@ -559,7 +757,8 @@
       trabajo_realizado: document.getElementById('f_trabajo').value.trim() || null,
       presupuesto: Number(document.getElementById('f_presupuesto').value) || 0,
       estado: document.getElementById('f_estado').value,
-      historial_pagos: currentPayments
+      historial_pagos: currentPayments,
+      fotos: currentRepairPhotos
     };
 
     if (!id) {
@@ -580,14 +779,35 @@
       const {error} = await db.from('reparaciones').update(data).eq('id', id);
       btn.disabled = false; btn.textContent = 'GUARDAR ORDEN';
       if (error) return toast(error.message, 'err');
+      logAudit('ACTUALIZAR_REPARACION', id, `Cliente: ${cliente} | Estado: ${data.estado}`);
       toast('Orden actualizada', 'ok');
     } else {
-      const {error} = await db.from('reparaciones').insert([data]);
+      const {data: insData, error} = await db.from('reparaciones').insert([data]).select();
       btn.disabled = false; btn.textContent = 'GUARDAR ORDEN';
       if (error) return toast(error.message, 'err');
+      const newId = insData?.[0]?.id || 'Nueva';
+      logAudit('CREAR_REPARACION', newId, `Cliente: ${cliente} | Equipo: ${data.equipo || 'N/A'}`);
       toast('Orden creada', 'ok');
     }
     
+    closePanel();
+    loadRepairs();
+  }
+
+  async function deleteRepair() {
+    if (!['admin', 'superadmin'].includes(currentUserRole)) {
+      return toast("⛔ Solo Administradores o Superadmins pueden eliminar órdenes.", "err");
+    }
+    const id = document.getElementById('f_id').value;
+    if (!id) return;
+    if (!confirm("¿Estás seguro de que deseás eliminar esta orden de reparación? Esta acción no se puede deshacer.")) return;
+    
+    const r = allRepairs.find(x => String(x.id) === String(id));
+    const {error} = await db.from('reparaciones').delete().eq('id', id);
+    if (error) return toast("Error al eliminar: " + error.message, "err");
+    
+    logAudit("ELIMINAR_REPARACION", id, `Cliente: ${r?.cliente || 'N/A'} | Equipo: ${r?.equipo || 'N/A'}`);
+    toast("🗑️ Orden de reparación eliminada", "ok");
     closePanel();
     loadRepairs();
   }
@@ -632,6 +852,17 @@
     document.getElementById('p_pres').textContent = '$' + pres.toLocaleString('es-AR');
     document.getElementById('p_abonado').textContent = '$' + pagado.toLocaleString('es-AR');
     document.getElementById('p_saldo').textContent = '$' + saldo.toLocaleString('es-AR');
+    
+    // Fotos en PDF
+    const fotContainer = document.getElementById('p_fotos_container');
+    const fotList = document.getElementById('p_fotos_list');
+    if (currentRepairPhotos && currentRepairPhotos.length > 0) {
+      fotContainer.style.display = 'block';
+      fotList.innerHTML = currentRepairPhotos.map(url => `<img src="${url}">`).join('');
+    } else {
+      fotContainer.style.display = 'none';
+      fotList.innerHTML = '';
+    }
     
     window.print();
   }
