@@ -137,8 +137,18 @@
   </header>
 
   <div class="container">
-    <div class="toolbar">
+    <div class="toolbar" style="flex-wrap:wrap">
       <input type="text" id="searchInput" class="search-input" placeholder="Buscar cliente o nro orden..." autocomplete="off">
+      <select id="filterEstado" class="search-input" style="max-width: 220px; cursor: pointer;" onchange="renderRepairs()">
+        <option value="">Todos los estados</option>
+        <option value="Ingresado / En Revisión">Ingresado / En Revisión</option>
+        <option value="Presupuestado / Esperando Confirmación">Presupuestado / Esperando Confirmación</option>
+        <option value="Reparando">Reparando</option>
+        <option value="Esperando Repuesto">Esperando Repuesto</option>
+        <option value="Reparado / Avisado al Cliente">Reparado / Avisado al Cliente</option>
+        <option value="Sin Reparación / Rechazado">Sin Reparación / Rechazado</option>
+        <option value="Entregado">Entregado</option>
+      </select>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
         <button class="btn-sm" style="background:var(--surface2);color:#fff;padding:0.6rem 1rem;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-weight:600" onclick="openTarifarioModal()">💲 Precios</button>
         <button class="btn-sm" style="background:var(--surface2);color:#fff;padding:0.6rem 1rem;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-weight:600" onclick="openAuditTallerModal()">📜 Auditoría</button>
@@ -198,9 +208,18 @@
           <input type="text" id="f_equipo" placeholder="Ej: iPhone 11" autocomplete="off">
         </div>
       </div>
-      <div class="form-group">
-        <label>Contraseña / Patrón</label>
-        <input type="text" id="f_clave" placeholder="PIN, Patrón o 'Sin clave'" autocomplete="off">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contraseña / Patrón</label>
+          <input type="text" id="f_clave" placeholder="PIN, Patrón o 'Sin clave'" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Sucursal de Ingreso</label>
+          <select id="f_sucursal" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:.75rem;color:var(--text);font-size:.9rem;outline:none">
+            <option value="Local 2984">Local 2984</option>
+            <option value="Local 1912">Local 1912</option>
+          </select>
+        </div>
       </div>
       <div class="form-group">
         <label>Estado de Ingreso (Checklist Rápido)</label>
@@ -250,7 +269,7 @@
           </div>
           <div><span style="color:var(--muted);display:block;margin-bottom:2px">Biometría (Huella/FaceID):</span>
             <select id="insp_bio" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:4px 6px;border-radius:4px">
-              <option value="Funciona">Funciona</option><option value="No funciona">No funciona</option><option value="No se pudo probar">No se pudo probar</option>
+              <option value="Funciona">Funciona</option><option value="No funciona">No funciona</option><option value="No se pudo probar">No se pudo probar</option><option value="No tiene">No tiene</option>
             </select>
           </div>
           <div><span style="color:var(--muted);display:block;margin-bottom:2px">Pantalla / Táctil:</span>
@@ -330,7 +349,7 @@
     </div>
     <div class="action-bar">
       <button class="btn-sm" id="btnDeleteRepair" style="flex:0.4;background:var(--danger);color:#fff;display:none" onclick="deleteRepair()">🗑️ Eliminar</button>
-      <button class="btn-sm" style="flex:0.5;background:var(--surface3);color:#fff" onclick="printComprobante()">🖨️ PDF</button>
+      <button class="btn-sm" style="flex:0.5;background:var(--surface3);color:#fff" onclick="printPDF()">🖨️ PDF</button>
       <button class="btn-save" id="btnSave" onclick="saveRepair()">GUARDAR ORDEN</button>
     </div>
   </div>
@@ -396,7 +415,7 @@
     
     <div class="print-title" id="p_titulo">ORDEN DE REPARACIÓN</div>
     
-    <div class="print-row"><strong>Nro de Orden:</strong> <span id="p_orden"></span></div>
+    <div class="print-row"><strong>Nro de Orden:</strong> <span id="p_orden"></span> <span id="p_sucursal" style="margin-left:15px;font-weight:bold;color:#000"></span></div>
     <div class="print-row"><strong>Fecha:</strong> <span id="p_fecha"></span></div>
     <div class="print-row"><strong>Cliente:</strong> <span id="p_cliente"></span></div>
     <div class="print-row"><strong>DNI:</strong> <span id="p_dni"></span></div>
@@ -576,15 +595,19 @@
 
   function renderRepairs() {
     const term = document.getElementById('searchInput').value.toLowerCase().trim();
+    const stFilter = (document.getElementById('filterEstado').value || '').trim();
     const list = document.getElementById('repList');
     
     let filtered = allRepairs;
     if (term) {
-      filtered = allRepairs.filter(r => 
+      filtered = filtered.filter(r => 
         (r.cliente||'').toLowerCase().includes(term) || 
         (r.nro_orden||'').toLowerCase().includes(term) ||
         String(r.id).includes(term)
       );
+    }
+    if (stFilter) {
+      filtered = filtered.filter(r => (r.estado||'').trim() === stFilter);
     }
 
     if (filtered.length === 0) {
@@ -622,7 +645,7 @@
       <div class="rep-card" onclick="openEdit(${r.id})">
         <div class="rep-header">
           <div class="rep-client">${r.cliente}</div>
-          <div class="rep-ord">${r.nro_orden ? r.nro_orden : '#'+r.id}</div>
+          <div class="rep-ord">${r.nro_orden ? r.nro_orden : '#'+r.id} <span style="font-size:0.72rem;background:var(--surface);padding:2px 6px;border-radius:4px;margin-left:6px;border:1px solid var(--border)">📍 ${r.sucursal || 'Local 2984'}</span></div>
         </div>
         <div class="rep-model">${r.equipo || 'Sin modelo'}</div>
         <div class="rep-footer">
@@ -647,6 +670,7 @@
     document.getElementById('f_telefono').value = '';
     document.getElementById('f_equipo').value = '';
     document.getElementById('f_clave').value = '';
+    if(document.getElementById('f_sucursal')) document.getElementById('f_sucursal').value = 'Local 2984';
     document.getElementById('f_chk_bateria').checked = false;
     document.getElementById('f_chk_rajado').checked = false;
     document.getElementById('f_chk_mojado').checked = false;
@@ -696,6 +720,7 @@
     document.getElementById('f_telefono').value = r.telefono || '';
     document.getElementById('f_equipo').value = r.equipo || '';
     document.getElementById('f_clave').value = r.codigo_desbloqueo || '';
+    if(document.getElementById('f_sucursal')) document.getElementById('f_sucursal').value = r.sucursal || 'Local 2984';
     document.getElementById('f_chk_bateria').checked = r.chk_sin_bateria || false;
     document.getElementById('f_chk_rajado').checked = r.chk_rajado || false;
     document.getElementById('f_chk_mojado').checked = r.chk_mojado || false;
@@ -951,6 +976,7 @@
       telefono: document.getElementById('f_telefono').value.trim() || null,
       equipo: document.getElementById('f_equipo').value.trim() || null,
       codigo_desbloqueo: document.getElementById('f_clave').value.trim() || null,
+      sucursal: document.getElementById('f_sucursal')?.value || 'Local 2984',
       chk_sin_bateria: document.getElementById('f_chk_bateria').checked,
       chk_rajado: document.getElementById('f_chk_rajado').checked,
       chk_mojado: document.getElementById('f_chk_mojado').checked,
@@ -1033,7 +1059,11 @@
 
   // Print PDF
   function printPDF() {
-    document.getElementById('p_ord').textContent = document.getElementById('f_orden').value;
+    const pOrdEl = document.getElementById('p_orden') || document.getElementById('p_ord');
+    if (pOrdEl) pOrdEl.textContent = document.getElementById('f_orden').value || '';
+    const pSucEl = document.getElementById('p_sucursal');
+    if (pSucEl) pSucEl.textContent = '— Sucursal: ' + (document.getElementById('f_sucursal')?.value || 'Local 2984');
+
     document.getElementById('p_fecha').textContent = new Date().toLocaleDateString('es-AR');
     document.getElementById('p_cliente').textContent = document.getElementById('f_cliente').value || '-';
     document.getElementById('p_dni').textContent = document.getElementById('f_dni').value || '-';
@@ -1050,6 +1080,7 @@
     if(document.getElementById('insp_cam_tras').value !== 'Bien' || document.getElementById('insp_cam_selfie').value !== 'Bien') checks.push('Cámaras Rev.');
     if(document.getElementById('insp_pin').value !== 'Buen estado') checks.push('Pin: ' + document.getElementById('insp_pin').value);
     if(document.getElementById('insp_display').value !== 'Impecable') checks.push('Display: ' + document.getElementById('insp_display').value);
+    if(document.getElementById('insp_bio') && document.getElementById('insp_bio').value !== 'Funciona') checks.push('Biometría: ' + document.getElementById('insp_bio').value);
     document.getElementById('p_checks').textContent = checks.length ? checks.join(', ') : 'Ninguno';
     
     document.getElementById('p_fallas').textContent = document.getElementById('f_fallas').value || '-';

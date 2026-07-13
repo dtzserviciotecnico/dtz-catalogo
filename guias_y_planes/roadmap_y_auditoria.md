@@ -75,6 +75,13 @@ A continuación, el registro de las funcionalidades planificadas y su estado de 
 - [x] **📋 Checklist Detallado de Hardware (2 Columnas):** Reducción del ingreso rápido a 3 estados críticos (Sin Batería, Rajado, Mojado) y agregado de inspección exhaustiva de 11 componentes (Tapa, Batería, Cámaras, SIM, Pin, Biometría, Display, Audio, Micrófono) guardados en JSONB `inspeccion_hw`.
 - [x] **Flujo Oficial de Estados DTZ:** Sincronización del ciclo de vida de reparaciones (`Ingresado / En Revisión`, `Presupuestado / Esperando Confirmación`, `Reparando`, etc.).
 
+### v1.3.1 - Corrección de Bugs y Mejoras de Taller (Completado - Julio 2026)
+- [x] **Corrección de Impresión PDF en Reparaciones:** Resolución del evento `onclick` hacia `printPDF()` y corrección de referencias en plantilla para el número de orden (`p_orden`).
+- [x] **Persistencia de Pestañas en Admin:** Corrección del filtro de roles `ROLE_TABS` para mantener visibles "🎟️ Descuentos" y "🛠️ Tarifario".
+- [x] **🔍 Filtro por Estado en Reparaciones:** Menú desplegable en la barra superior para filtrar órdenes según los 7 estados oficiales DTZ.
+- [x] **📍 Selector de Sucursal de Ingreso:** Campo seleccionable en recepción (`Local 2984` / `Local 1912`) que se refleja en tarjeta y en el remito impreso PDF.
+- [x] **📋 Biometría "No tiene":** Nueva opción en inspección de hardware para teléfonos sin lector biométrico.
+
 ---
 
 *Fin del documento de auditoría.*
