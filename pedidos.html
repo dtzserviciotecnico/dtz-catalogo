@@ -125,16 +125,16 @@
   </header>
 
   <div class="container-wrapper">
-    <!-- PANEL LATERAL IZQUIERDO -->
-    <aside class="left-sidebar" id="leftSidebar">
+    <!-- PANEL LATERAL IZQUIERDO (SOLO ADMIN) -->
+    <aside class="left-sidebar" id="leftSidebar" style="display:none;">
       <div class="sidebar-header">
         <span class="sidebar-title">⚡ ACCIONES</span>
       </div>
-      <button class="sidebar-btn btn-del-viejos" id="btnDeleteViejos" onclick="eliminarViejos()" style="display:none;" title="Eliminar pedidos pendientes con más de 15 días (Solo Admin)">
+      <button class="sidebar-btn btn-del-viejos" id="btnDeleteViejos" onclick="eliminarViejos()" title="Eliminar pedidos pendientes con más de 15 días (Solo Admin)">
         <span>⏳ Borrar +15 días</span>
         <span class="sidebar-badge" id="badgeViejos">0</span>
       </button>
-      <button class="sidebar-btn btn-del-recibidos" id="btnDeleteRecibidos" onclick="eliminarRecibidos()" title="Limpiar todos los pedidos recibidos">
+      <button class="sidebar-btn btn-del-recibidos" id="btnDeleteRecibidos" onclick="eliminarRecibidos()" title="Limpiar todos los pedidos recibidos (Solo Admin)">
         <span>✔️ Borrar Recibidos</span>
         <span class="sidebar-badge" id="badgeRecibidos">0</span>
       </button>
@@ -267,11 +267,11 @@
       const { data: prof } = await db.from('profiles').select('role').eq('id', currentUser.id).single();
       if (prof) userRole = prof.role;
 
-      // Visibilidad de botón para Admin
+      // Visibilidad del panel de acciones solo para Admin
       const isAdmin = ['admin', 'superadmin'].includes(userRole);
-      const btnViejos = document.getElementById('btnDeleteViejos');
-      if (btnViejos) {
-        btnViejos.style.display = isAdmin ? 'flex' : 'none';
+      const sidebar = document.getElementById('leftSidebar');
+      if (sidebar) {
+        sidebar.style.display = isAdmin ? 'flex' : 'none';
       }
 
       // Asignar local por defecto según usuario si queremos, por ahora default 1912
@@ -487,6 +487,10 @@
     }
 
     async function eliminarRecibidos() {
+      if (!['admin', 'superadmin'].includes(userRole)) {
+        return toast('Solo Administradores pueden realizar esta acción.', 'err');
+      }
+
       const recibidos = allPedidos.filter(p => p.estado === 'Recibido');
 
       if (recibidos.length === 0) {
